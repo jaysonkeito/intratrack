@@ -1,0 +1,69 @@
+{% extends 'core/base.html' %}
+{% block title %}Facilitator Dashboard — IntraTrack{% endblock %}
+{% block content %}
+
+<div class="mb-8">
+  <p class="font-mono text-xs mb-1" style="color:var(--gold);letter-spacing:0.2em;">⚡ FACILITATOR PANEL</p>
+  <h1 class="font-display text-5xl">{{ sport.get_name_display|upper }}</h1>
+  <p class="text-sm mt-1" style="color:var(--muted);">
+    Logged in as <strong style="color:var(--text);">{{ sport.facilitator_display_name|default:request.user.username }}</strong>
+    <span style="color:var(--border);">·</span>
+    <span>@{{ request.user.username }}</span>
+  </p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+  {% for cat in categories %}
+  <div class="card p-5">
+    <p class="font-mono text-xs mb-1" style="color:var(--gold);">CATEGORY</p>
+    <h2 class="font-display text-2xl mb-4">{{ cat.get_name_display|upper }}</h2>
+
+    {% if cat.bracket_generated %}
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <span class="badge-scheduled">{{ cat.get_bracket_type_display }}</span>
+        <span class="badge-scheduled">{{ cat.team_count }} Teams</span>
+        <span class="badge-finished">Bracket Ready</span>
+      </div>
+      <a href="/sport/{{ sport.name }}/{{ cat.name }}/" class="btn-gold" style="display:block;text-align:center;">Manage Bracket →</a>
+
+      <!-- Reset bracket — always available, no confirmation gate needed since we confirm via onsubmit -->
+      <div class="mt-4" style="border-top:1px solid var(--border);padding-top:14px;">
+        <p class="text-xs mb-3" style="color:var(--muted);">Change bracket type or team count:</p>
+        <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="flex flex-col gap-2"
+          onsubmit="return confirm('This will reset all matches for {{ cat.get_name_display }}. Continue?')">
+          {% csrf_token %}
+          <select name="bracket_type">
+            {% for code, label in bracket_choices %}
+            <option value="{{ code }}" {% if cat.bracket_type == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <input type="number" name="team_count" min="2" max="16" value="{{ cat.team_count }}" />
+          <button type="submit" style="background:rgba(255,160,60,0.12);color:#ffaa3c;border:1px solid rgba(255,160,60,0.3);border-radius:8px;padding:7px;font-size:0.82rem;cursor:pointer;">⚠ Reset & Regenerate</button>
+        </form>
+      </div>
+
+    {% else %}
+      <p class="text-sm mb-4" style="color:var(--muted);">Set up this category's bracket to get started.</p>
+      <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="flex flex-col gap-3">
+        {% csrf_token %}
+        <div>
+          <label class="text-xs mb-1 block" style="color:var(--muted);">BRACKET TYPE</label>
+          <select name="bracket_type">
+            {% for code, label in bracket_choices %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs mb-1 block" style="color:var(--muted);">NUMBER OF TEAMS</label>
+          <input type="number" name="team_count" min="2" max="16" placeholder="e.g. 6" required />
+          <p class="text-xs mt-1" style="color:var(--muted);">Teams labeled A, B, C… Assign colleges after.</p>
+        </div>
+        <button type="submit" class="btn-gold">Generate Bracket →</button>
+      </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}IntraTrack{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root { --gold:#F5C518; --gold-dim:#c9a010; --ink:#0a0a0f; --surface:#111118; --card:#1a1a24; --border:#2a2a38; --muted:#6b6b80; --text:#e8e8f0; }
+    * { box-sizing: border-box; }
+    body { background:var(--ink); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; }
+    .font-display { font-family:'Bebas Neue',sans-serif; letter-spacing:0.05em; }
+    .font-mono { font-family:'JetBrains Mono',monospace; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; }
+    .badge-ongoing { background:rgba(245,197,24,0.15); color:var(--gold); border:1px solid rgba(245,197,24,0.3); border-radius:999px; padding:2px 10px; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; animation:pulse-badge 2s ease-in-out infinite; }
+    .badge-finished { background:rgba(100,255,150,0.1); color:#64ff96; border:1px solid rgba(100,255,150,0.2); border-radius:999px; padding:2px 10px; font-size:0.7rem; font-weight:600; text-transform:uppercase; }
+    .badge-scheduled { background:rgba(107,107,128,0.15); color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:2px 10px; font-size:0.7rem; font-weight:600; text-transform:uppercase; }
+    @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    .btn-gold { background:var(--gold); color:#000; font-weight:600; border-radius:8px; padding:8px 18px; font-size:0.85rem; transition:background 0.2s,transform 0.1s; cursor:pointer; border:none; text-decoration:none; display:inline-block; }
+    .btn-gold:hover { background:var(--gold-dim); transform:translateY(-1px); }
+    .sport-chip { display:inline-flex; align-items:center; padding:4px 12px; border-radius:999px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font-size:0.78rem; font-weight:500; text-decoration:none; transition:all 0.2s; white-space:nowrap; }
+    .sport-chip:hover,.sport-chip.active { border-color:var(--gold); color:var(--gold); background:rgba(245,197,24,0.08); }
+    input[type="number"],input[type="text"],input[type="datetime-local"],input[type="password"],select,textarea { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 12px; width:100%; font-family:'DM Sans',sans-serif; font-size:0.9rem; outline:none; transition:border-color 0.2s; }
+    input:focus,select:focus,textarea:focus { border-color:var(--gold); }
+    .rank-1{color:var(--gold);} .rank-2{color:#c0c0c0;} .rank-3{color:#cd7f32;}
+    .scrollbar-hide::-webkit-scrollbar{display:none;}
+    details summary{list-style:none;} details summary::-webkit-details-marker{display:none;}
+
+    /* ── Announcement Banner ── */
+    #ann-banner {
+      background: linear-gradient(90deg, #1a1400, #1f1800, #1a1400);
+      border-bottom: 1px solid rgba(245,197,24,0.25);
+      overflow: hidden;
+      position: relative;
+    }
+    .ann-slide {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 9px 16px;
+      text-align: center;
+      animation: ann-fade 0.5s ease;
+    }
+    .ann-slide.active { display: flex; }
+    @keyframes ann-fade { from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:translateY(0)} }
+    .ann-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(245,197,24,0.3);
+      cursor: pointer; transition: background 0.2s;
+      border: none; padding: 0; flex-shrink: 0;
+    }
+    .ann-dot.active { background: var(--gold); }
+    .ann-remove-btn {
+      background: none; border: none; color: rgba(245,197,24,0.4);
+      cursor: pointer; font-size: 1rem; line-height: 1;
+      transition: color 0.2s; padding: 0 2px; flex-shrink: 0;
+    }
+    .ann-remove-btn:hover { color: #ff6464; }
+
+    /* ── Post Announcement Panel (staff only) ── */
+    #ann-post-panel {
+      background: rgba(245,197,24,0.04);
+      border-bottom: 1px solid rgba(245,197,24,0.12);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Announcement Banner ───────────────────────────────────────────── -->
+  {% if announcements %}
+  <div id="ann-banner">
+    <div class="flex items-center" style="max-width:1280px;margin:0 auto;padding:0 16px;position:relative;">
+      <!-- 📢 label -->
+      <span class="font-mono text-xs flex-shrink-0 mr-3" style="color:var(--gold);letter-spacing:0.1em;">📢 ANNOUNCEMENT</span>
+
+      <!-- Slides -->
+      <div class="flex-1 relative" style="overflow:hidden;">
+        {% for ann in announcements %}
+        <div class="ann-slide {% if forloop.first %}active{% endif %}" data-ann-id="{{ ann.id }}">
+          <span class="text-sm font-medium" style="color:var(--gold);">{{ ann.message }}</span>
+          {% if request.user.is_authenticated %}
+            {% if request.user.is_superuser or request.user.facilitated_sport %}
+              <button class="ann-remove-btn" onclick="removeAnnouncement({{ ann.id }}, this)" title="Remove">×</button>
+            {% endif %}
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Dots (only if multiple) -->
+      {% if announcements|length > 1 %}
+      <div class="flex items-center gap-1 ml-3 flex-shrink-0" id="ann-dots">
+        {% for ann in announcements %}
+        <button class="ann-dot {% if forloop.first %}active{% endif %}" onclick="goToSlide({{ forloop.counter0 }})"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div id="ann-banner" style="display:none;">
+    <div class="flex items-center" style="max-width:1280px;margin:0 auto;padding:0 16px;">
+      <span class="font-mono text-xs flex-shrink-0 mr-3" style="color:var(--gold);letter-spacing:0.1em;">📢 ANNOUNCEMENT</span>
+      <div class="flex-1 relative" style="overflow:hidden;" id="ann-slides-container"></div>
+      <div class="flex items-center gap-1 ml-3 flex-shrink-0" id="ann-dots"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Post Announcement (staff only) ────────────────────────────────── -->
+  {% if request.user.is_authenticated %}
+    {% if request.user.is_superuser or request.user.facilitated_sport %}
+    <div id="ann-post-panel">
+      <span class="font-mono text-xs flex-shrink-0" style="color:var(--gold);">+ POST</span>
+      <input type="text" id="ann-input" placeholder='e.g. "Finals will start at 3PM"'
+        style="flex:1;min-width:200px;max-width:520px;padding:5px 10px;font-size:0.85rem;border-radius:6px;"
+        onkeydown="if(event.key==='Enter') postAnnouncement()" maxlength="300" />
+      <button onclick="postAnnouncement()" class="btn-gold" style="padding:5px 16px;font-size:0.82rem;flex-shrink:0;">Post</button>
+      <span id="ann-post-feedback" style="font-size:0.8rem;color:#64ff96;display:none;">✓ Posted</span>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- ── Nav ──────────────────────────────────────────────────────────── -->
+  <nav style="border-bottom:1px solid var(--border);background:rgba(10,10,15,0.95);backdrop-filter:blur(10px);" class="sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+      <a href="/" class="flex items-center gap-1 flex-shrink-0">
+        <span class="font-display text-2xl" style="color:var(--gold);">INTRA</span>
+        <span class="font-display text-2xl">TRACK</span>
+      </a>
+      <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1">
+        {% for s in all_sports %}
+          <a href="/sport/{{ s.name }}/" class="sport-chip {% if request.resolver_match.kwargs.sport_name == s.name %}active{% endif %}">{{ s.get_name_display }}</a>
+        {% endfor %}
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        {% if request.user.is_authenticated %}
+          {% if request.user.is_superuser %}
+            <a href="/admin-panel/" class="btn-gold" style="font-size:0.8rem;padding:6px 14px;">Admin Panel</a>
+          {% elif request.user.facilitated_sport %}
+            <a href="/facilitator/" class="btn-gold" style="font-size:0.8rem;padding:6px 14px;">⚡ Facilitator</a>
+          {% endif %}
+          <a href="/logout/" style="color:var(--muted);font-size:0.85rem;text-decoration:none;">Sign out</a>
+        {% else %}
+          <a href="/login/" class="btn-gold">Login</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer style="border-top:1px solid var(--border);color:var(--muted);" class="text-center py-6 text-sm mt-12">
+    IntraTrack &mdash; {{ site_settings.event_name }} {{ site_settings.event_year }}
+  </footer>
+
+  <!-- ── Announcement JS ───────────────────────────────────────────────── -->
+  <script>
+    let annData = {{ announcements|safe }};
+    let currentSlide = 0;
+    let slideTimer = null;
+    const IS_STAFF = {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}true{% else %}false{% endif %}{% else %}false{% endif %};
+
+    function getCookie(name) {
+      let v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+      return v ? v[2] : null;
+    }
+
+    function renderBanner() {
+      const banner = document.getElementById('ann-banner');
+      const container = document.getElementById('ann-slides-container');
+      const dotsEl = document.getElementById('ann-dots');
+
+      if (annData.length === 0) {
+        banner.style.display = 'none';
+        return;
+      }
+
+      banner.style.display = 'block';
+
+      // Only re-render if slides container exists (dynamic mode — no server-rendered slides)
+      if (container) {
+        container.innerHTML = annData.map((ann, i) => `
+          <div class="ann-slide ${i === currentSlide ? 'active' : ''}" data-ann-id="${ann.id}">
+            <span class="text-sm font-medium" style="color:var(--gold);">${ann.message}</span>
+            ${IS_STAFF ? `<button class="ann-remove-btn" onclick="removeAnnouncement(${ann.id}, this)" title="Remove">×</button>` : ''}
+          </div>`).join('');
+      }
+
+      if (dotsEl) {
+        dotsEl.innerHTML = annData.length > 1
+          ? annData.map((_, i) => `<button class="ann-dot ${i === currentSlide ? 'active' : ''}" onclick="goToSlide(${i})"></button>`).join('')
+          : '';
+      }
+    }
+
+    function goToSlide(idx) {
+      const slides = document.querySelectorAll('.ann-slide');
+      const dots = document.querySelectorAll('.ann-dot');
+      slides.forEach(s => s.classList.remove('active'));
+      dots.forEach(d => d.classList.remove('active'));
+      currentSlide = (idx + annData.length) % annData.length;
+      if (slides[currentSlide]) slides[currentSlide].classList.add('active');
+      if (dots[currentSlide]) dots[currentSlide].classList.add('active');
+    }
+
+    function startSlideshow() {
+      if (slideTimer) clearInterval(slideTimer);
+      if (annData.length > 1) {
+        slideTimer = setInterval(() => goToSlide(currentSlide + 1), 4000);
+      }
+    }
+
+    async function postAnnouncement() {
+      const input = document.getElementById('ann-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      const fb = document.getElementById('ann-post-feedback');
+      try {
+        const res = await fetch('/announcements/post/', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+          body: JSON.stringify({message: msg})
+        });
+        const data = await res.json();
+        if (data.success) {
+          annData.push({id: data.id, message: data.message});
+          input.value = '';
+          currentSlide = annData.length - 1;
+          renderBanner();
+          startSlideshow();
+          fb.style.display = 'inline';
+          setTimeout(() => fb.style.display = 'none', 2500);
+        }
+      } catch(e) {}
+    }
+
+    async function removeAnnouncement(annId, btn) {
+      if (!confirm('Remove this announcement?')) return;
+      try {
+        const res = await fetch(`/announcements/remove/${annId}/`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+          body: '{}'
+        });
+        const data = await res.json();
+        if (data.success) {
+          annData = annData.filter(a => a.id !== annId);
+          currentSlide = Math.min(currentSlide, Math.max(0, annData.length - 1));
+          renderBanner();
+          startSlideshow();
+        }
+      } catch(e) {}
+    }
+
+    // Poll for new announcements every 8 seconds (for viewers)
+    async function pollAnnouncements() {
+      try {
+        const res = await fetch('/api/announcements/');
+        const data = await res.json();
+        // Only update if count changed to avoid resetting slideshow unnecessarily
+        if (data.announcements.length !== annData.length) {
+          annData = data.announcements;
+          currentSlide = 0;
+          renderBanner();
+          startSlideshow();
+        }
+      } catch(e) {}
+    }
+
+    // Boot
+    startSlideshow();
+    setInterval(pollAnnouncements, 8000);
+  </script>
+</body>
+</html>

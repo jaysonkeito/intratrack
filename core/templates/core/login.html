@@ -1,0 +1,37 @@
+{% extends 'core/base.html' %}
+{% block title %}Scorer Login — IntraTrack{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-center" style="min-height: 60vh;">
+  <div class="card p-8" style="width:100%; max-width:400px;">
+    <div class="text-center mb-8">
+      <p class="font-mono text-xs mb-2" style="color:var(--gold); letter-spacing:0.2em;">RESTRICTED ACCESS</p>
+      <h1 class="font-display text-4xl">SCORER LOGIN</h1>
+    </div>
+
+    {% if error %}
+      <div style="background:rgba(255,100,100,0.1); border:1px solid rgba(255,100,100,0.3); border-radius:8px; padding:10px 14px; margin-bottom:16px;">
+        <p class="text-sm" style="color:#ff6464;">{{ error }}</p>
+      </div>
+    {% endif %}
+
+    <form method="POST" class="flex flex-col gap-4">
+      {% csrf_token %}
+      <div>
+        <label class="text-xs mb-1 block" style="color:var(--muted);">USERNAME</label>
+        <input type="text" name="username" placeholder="scorer_basketball" autofocus />
+      </div>
+      <div>
+        <label class="text-xs mb-1 block" style="color:var(--muted);">PASSWORD</label>
+        <input type="password" name="password" placeholder="••••••••" />
+      </div>
+      <button type="submit" class="btn-gold w-full mt-2" style="text-align:center; padding:12px;">Sign In</button>
+    </form>
+
+    <p class="text-xs text-center mt-6" style="color:var(--muted);">
+      Students: <a href="/" style="color:var(--gold);">view live scores without logging in →</a>
+    </p>
+  </div>
+</div>
+
+{% endblock %}

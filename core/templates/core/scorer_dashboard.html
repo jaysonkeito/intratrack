@@ -1,0 +1,41 @@
+{% extends 'core/base.html' %}
+{% block title %}Scorer Dashboard — IntraTrack{% endblock %}
+{% block content %}
+
+<div class="mb-8">
+  <p class="font-mono text-xs mb-1" style="color:var(--gold); letter-spacing:0.2em;">⚡ SCORER PANEL</p>
+  <h1 class="font-display text-5xl mb-1">{{ sport.get_name_display|upper }}</h1>
+  <p class="text-sm" style="color:var(--muted);">Logged in as <strong style="color:var(--text);">{{ request.user.username }}</strong></p>
+</div>
+
+<div class="mb-4">
+  <a href="/sport/{{ sport.name }}/" class="btn-gold">← View Public Page</a>
+</div>
+
+<p class="text-sm mb-6" style="color:var(--muted);">
+  You can update scores and match status directly on the 
+  <a href="/sport/{{ sport.name }}/" style="color:var(--gold);">{{ sport.get_name_display }} page</a>.
+  The scorer controls appear there when you're logged in.
+</p>
+
+<div class="card p-5" style="max-width: 500px;">
+  <h2 class="font-display text-2xl mb-4">QUICK STATS</h2>
+  <div class="grid grid-cols-3 gap-4 text-center">
+    <div>
+      <p class="font-display text-3xl" style="color:var(--gold);">{{ matches.count }}</p>
+      <p class="text-xs" style="color:var(--muted);">TOTAL MATCHES</p>
+    </div>
+    <div>
+      <p class="font-display text-3xl" style="color:#64ff96;">{{ matches|length }}</p>
+      <p class="text-xs" style="color:var(--muted);">TEAMS</p>
+    </div>
+    <div>
+      <p class="font-display text-3xl" style="color:#F5C518;">
+        {% for m in matches %}{% if m.status == 'ongoing' %}1{% endif %}{% endfor %}
+      </p>
+      <p class="text-xs" style="color:var(--muted);">LIVE NOW</p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
