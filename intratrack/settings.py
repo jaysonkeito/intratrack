@@ -13,7 +13,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'intratrack.pythonanywhere.com',
+    'jaysonkeito.pythonanywhere.com',
     '*',  # remove in strict production
 ]
 

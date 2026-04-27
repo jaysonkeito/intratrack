@@ -74,3 +74,12 @@ class MatchAdmin(admin.ModelAdmin):
 class AnnouncementAdmin(admin.ModelAdmin):
     list_display  = ['message', 'created_by', 'created_at', 'is_active']
     list_editable = ['is_active']
+
+
+from .models import Player
+
+@admin.register(Player)
+class PlayerAdmin(admin.ModelAdmin):
+    list_display = ['name', 'jersey_number', 'participant', 'status']
+    list_filter  = ['status', 'participant__category__sport']
+    list_editable = ['status']

@@ -301,6 +301,9 @@ def update_match_score(request, match_id):
     match.save()
     if match.status == 'finished':
         advance_winner(match)
+        # Issue 3 fix: auto-clear next_up when match finishes
+        match.is_next_up = False
+        match.save()
     return JsonResponse({'success': True})
 
 
@@ -342,3 +345,95 @@ def remove_announcement(request, ann_id):
     ann.is_active = False
     ann.save()
     return JsonResponse({'success': True})
+
+
+# ─── Score Reset (keep bracket, zero scores) ─────────────────────────────────
+
+@login_required
+@require_POST
+def reset_scores(request, cat_id):
+    """Reset all scores to 0 and status to Scheduled — keeps bracket intact."""
+    category = get_object_or_404(Category, id=cat_id)
+    if not is_facilitator_for(request.user, category.sport):
+        return redirect('home')
+    Match.objects.filter(category=category).update(
+        score_a=0, score_b=0, status='scheduled', is_next_up=False
+    )
+    return redirect('facilitator_dashboard')
+
+
+# ─── Full Bracket Reset ───────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def full_reset_bracket(request, cat_id):
+    """Wipe bracket completely — back to 'not yet set up'."""
+    category = get_object_or_404(Category, id=cat_id)
+    if not is_facilitator_for(request.user, category.sport):
+        return redirect('home')
+    Match.objects.filter(category=category).delete()
+    Participant.objects.filter(category=category).delete()
+    category.bracket_type = None
+    category.team_count = None
+    category.bracket_generated = False
+    category.save()
+    return redirect('facilitator_dashboard')
+
+
+# ─── Player Management ────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def add_player(request, participant_id):
+    from .models import Player
+    participant = get_object_or_404(Participant, id=participant_id)
+    if not is_facilitator_for(request.user, participant.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    data = json.loads(request.body)
+    name = data.get('name', '').strip()
+    jersey = data.get('jersey_number', '').strip()
+    if not name:
+        return JsonResponse({'error': 'Name required'}, status=400)
+    player = Player.objects.create(participant=participant, name=name, jersey_number=jersey)
+    return JsonResponse({'success': True, 'id': player.id, 'name': player.name,
+                         'jersey_number': player.jersey_number, 'status': player.status})
+
+
+@login_required
+@require_POST
+def remove_player(request, player_id):
+    from .models import Player
+    player = get_object_or_404(Player, id=player_id)
+    if not is_facilitator_for(request.user, player.participant.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    player.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def update_player_status(request, player_id):
+    from .models import Player
+    player = get_object_or_404(Player, id=player_id)
+    if not is_facilitator_for(request.user, player.participant.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    data = json.loads(request.body)
+    status = data.get('status')
+    if status in ['standby', 'playing', 'done']:
+        player.status = status
+        player.save()
+    return JsonResponse({'success': True, 'status': player.status})
+
+
+def category_players_json(request, sport_slug, cat_name):
+    """Public endpoint — viewers can poll player rosters."""
+    from .models import Player
+    sport = get_object_or_404(Sport, slug=sport_slug)
+    category = get_object_or_404(Category, sport=sport, name=cat_name)
+    data = []
+    for p in category.participants.prefetch_related('players').all():
+        players = [{'id': pl.id, 'name': pl.name,
+                    'jersey_number': pl.jersey_number, 'status': pl.status}
+                   for pl in p.players.all()]
+        data.append({'slot': p.slot_label, 'college': p.display_name(), 'players': players})
+    return JsonResponse({'roster': data})

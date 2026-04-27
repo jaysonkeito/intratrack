@@ -235,3 +235,22 @@ class Announcement(models.Model):
 
     def __str__(self):
         return self.message[:60]
+
+
+class Player(models.Model):
+    """A named player belonging to a participant slot in a category."""
+    participant  = models.ForeignKey(Participant, on_delete=models.CASCADE,
+                       related_name='players')
+    name         = models.CharField(max_length=100)
+    jersey_number = models.CharField(max_length=10, blank=True)
+    status       = models.CharField(max_length=20, choices=[
+                       ('standby', 'Standby'),
+                       ('playing', 'Playing'),
+                       ('done',    'Done'),
+                   ], default='standby')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.participant})"

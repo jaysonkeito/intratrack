@@ -7,10 +7,12 @@
   <h1 class="font-display text-5xl">{{ sport.get_name_display|upper }}</h1>
   <p class="text-sm mt-1" style="color:var(--muted);">
     Logged in as <strong style="color:var(--text);">{{ sport.facilitator_display_name|default:request.user.username }}</strong>
-    <span style="color:var(--border);">·</span>
-    <span>@{{ request.user.username }}</span>
+    <span style="color:var(--border);">·</span> @{{ request.user.username }}
   </p>
 </div>
+
+{% comment %} Collect used bracket types across all categories of this sport {% endcomment %}
+{% with used_types=sport.categories.all %}
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
   {% for cat in categories %}
@@ -19,30 +21,63 @@
     <h2 class="font-display text-2xl mb-4">{{ cat.get_name_display|upper }}</h2>
 
     {% if cat.bracket_generated %}
+      <!-- Bracket is active -->
       <div class="flex gap-2 mb-4 flex-wrap">
         <span class="badge-scheduled">{{ cat.get_bracket_type_display }}</span>
         <span class="badge-scheduled">{{ cat.team_count }} Teams</span>
         <span class="badge-finished">Bracket Ready</span>
       </div>
+
       <a href="/sport/{{ sport.slug }}/{{ cat.name }}/" class="btn-gold" style="display:block;text-align:center;">Manage Bracket →</a>
 
-      <!-- Reset bracket — always available, no confirmation gate needed since we confirm via onsubmit -->
+      <!-- Reset Options -->
       <div class="mt-4" style="border-top:1px solid var(--border);padding-top:14px;">
-        <p class="text-xs mb-3" style="color:var(--muted);">Change bracket type or team count:</p>
-        <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="flex flex-col gap-2"
-          onsubmit="return confirm('This will reset all matches for {{ cat.get_name_display }}. Continue?')">
-          {% csrf_token %}
-          <select name="bracket_type">
-            {% for code, label in bracket_choices %}
-            <option value="{{ code }}" {% if cat.bracket_type == code %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-          <input type="number" name="team_count" min="2" max="16" value="{{ cat.team_count }}" />
-          <button type="submit" style="background:rgba(255,160,60,0.12);color:#ffaa3c;border:1px solid rgba(255,160,60,0.3);border-radius:8px;padding:7px;font-size:0.82rem;cursor:pointer;">⚠ Reset & Regenerate</button>
-        </form>
+        <p class="text-xs mb-3" style="color:var(--muted);">RESET OPTIONS</p>
+        <div class="flex flex-col gap-2">
+
+          <!-- Score Reset Only -->
+          <form method="POST" action="/facilitator/bracket/{{ cat.id }}/reset-scores/"
+            onsubmit="return confirm('Reset all scores to 0? Bracket and teams stay intact.')">
+            {% csrf_token %}
+            <button type="submit" style="width:100%;background:rgba(100,180,255,0.08);color:#64b4ff;border:1px solid rgba(100,180,255,0.25);border-radius:8px;padding:7px;font-size:0.82rem;cursor:pointer;">
+              🔄 Reset Scores Only
+            </button>
+          </form>
+
+          <!-- Full Reset -->
+          <form method="POST" action="/facilitator/bracket/{{ cat.id }}/full-reset/"
+            onsubmit="return confirm('FULL RESET: This will delete all matches, scores, and team assignments. The category will go back to setup. Continue?')">
+            {% csrf_token %}
+            <button type="submit" style="width:100%;background:rgba(255,100,100,0.08);color:#ff6464;border:1px solid rgba(255,100,100,0.25);border-radius:8px;padding:7px;font-size:0.82rem;cursor:pointer;">
+              ⚠ Full Reset (Back to Setup)
+            </button>
+          </form>
+
+          <!-- Change bracket type -->
+          <details>
+            <summary class="text-xs cursor-pointer mt-1" style="color:var(--muted);">Change bracket type / team count</summary>
+            <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="mt-3 flex flex-col gap-2"
+              onsubmit="return confirm('This resets all matches. Continue?')">
+              {% csrf_token %}
+              <select name="bracket_type">
+                {% for code, label in bracket_choices %}
+                  <option value="{{ code }}" {% if cat.bracket_type == code %}selected{% endif %}
+                    {% comment %}Disable if already used by another category in this sport{% endcomment %}
+                    {% for other_cat in used_types %}
+                      {% if other_cat.id != cat.id and other_cat.bracket_type == code and other_cat.bracket_generated %}disabled{% endif %}
+                    {% endfor %}
+                  >{{ label }}{% for other_cat in used_types %}{% if other_cat.id != cat.id and other_cat.bracket_type == code and other_cat.bracket_generated %} (used by {{ other_cat.get_name_display }}){% endif %}{% endfor %}</option>
+                {% endfor %}
+              </select>
+              <input type="number" name="team_count" min="2" max="16" value="{{ cat.team_count }}" />
+              <button type="submit" style="background:rgba(255,160,60,0.12);color:#ffaa3c;border:1px solid rgba(255,160,60,0.3);border-radius:8px;padding:7px;font-size:0.82rem;cursor:pointer;">⚠ Reset & Regenerate</button>
+            </form>
+          </details>
+        </div>
       </div>
 
     {% else %}
+      <!-- Not set up yet -->
       <p class="text-sm mb-4" style="color:var(--muted);">Set up this category's bracket to get started.</p>
       <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="flex flex-col gap-3">
         {% csrf_token %}
@@ -50,9 +85,12 @@
           <label class="text-xs mb-1 block" style="color:var(--muted);">BRACKET TYPE</label>
           <select name="bracket_type">
             {% for code, label in bracket_choices %}
-            <option value="{{ code }}">{{ label }}</option>
+            <option value="{{ code }}"
+              {% for other_cat in used_types %}{% if other_cat.bracket_type == code and other_cat.bracket_generated %}disabled{% endif %}{% endfor %}
+            >{{ label }}{% for other_cat in used_types %}{% if other_cat.bracket_type == code and other_cat.bracket_generated %} ← used by {{ other_cat.get_name_display }}{% endif %}{% endfor %}</option>
             {% endfor %}
           </select>
+          <p class="text-xs mt-1" style="color:var(--muted);">Options marked as "used" are already taken by another category in this sport.</p>
         </div>
         <div>
           <label class="text-xs mb-1 block" style="color:var(--muted);">NUMBER OF TEAMS</label>
@@ -65,5 +103,6 @@
   </div>
   {% endfor %}
 </div>
+{% endwith %}
 
 {% endblock %}

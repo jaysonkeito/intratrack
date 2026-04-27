@@ -354,4 +354,133 @@ async function poll() {
 setInterval(poll, 3000);
 </script>
 
+
+
+<!-- ── Player Roster ─────────────────────────────────────────────────────── -->
+<div class="mt-10">
+  <h2 class="font-display text-3xl mb-6">PLAYER ROSTER</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="roster-grid">
+    {% for p in participants %}
+    <div class="card p-4" id="roster-{{ p.id }}">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <p class="font-mono text-xs" style="color:var(--muted);">{{ p.slot_label }}</p>
+          <p class="font-display text-xl">{{ p.display_name }}</p>
+        </div>
+        <span class="text-xs" style="color:var(--muted);">{{ p.players.count }} player{{ p.players.count|pluralize }}</span>
+      </div>
+
+      <!-- Player list -->
+      <div class="flex flex-col gap-1 mb-3" id="players-{{ p.id }}">
+        {% for player in p.players.all %}
+        <div class="flex items-center justify-between" style="padding:5px 8px;border-radius:6px;background:var(--surface);" id="player-row-{{ player.id }}">
+          <div class="flex items-center gap-2">
+            {% if player.jersey_number %}
+            <span class="font-mono text-xs" style="color:var(--gold);min-width:20px;">#{{ player.jersey_number }}</span>
+            {% endif %}
+            <span class="text-sm">{{ player.name }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs px-2 py-0 rounded-full"
+              style="background:{% if player.status == 'playing' %}rgba(245,197,24,0.15);color:var(--gold){% elif player.status == 'done' %}rgba(100,255,150,0.1);color:#64ff96{% else %}rgba(107,107,128,0.15);color:var(--muted){% endif %};">
+              {{ player.get_status_display }}
+            </span>
+            {% if is_facilitator %}
+            <select onchange="updatePlayerStatus({{ player.id }}, this.value)" style="width:auto;padding:2px 6px;font-size:0.75rem;">
+              <option value="standby" {% if player.status == 'standby' %}selected{% endif %}>Standby</option>
+              <option value="playing" {% if player.status == 'playing' %}selected{% endif %}>Playing</option>
+              <option value="done" {% if player.status == 'done' %}selected{% endif %}>Done</option>
+            </select>
+            <button onclick="removePlayer({{ player.id }}, this)" style="background:none;border:none;color:#ff6464;cursor:pointer;font-size:0.9rem;" title="Remove">×</button>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-xs" style="color:var(--muted);" id="no-players-{{ p.id }}">No players added yet.</p>
+        {% endfor %}
+      </div>
+
+      <!-- Add player (facilitator only) -->
+      {% if is_facilitator %}
+      <div style="border-top:1px solid var(--border);padding-top:10px;" class="flex gap-2">
+        <input type="text" id="pname-{{ p.id }}" placeholder="Player name" style="flex:1;padding:5px 8px;font-size:0.82rem;" />
+        <input type="text" id="pnum-{{ p.id }}" placeholder="#" style="width:40px;padding:5px 6px;font-size:0.82rem;" />
+        <button onclick="addPlayer({{ p.id }})" class="btn-gold" style="padding:5px 12px;font-size:0.8rem;flex-shrink:0;">Add</button>
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="card p-6 text-center" style="color:var(--muted);">No team slots yet.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+// ── Player Management ────────────────────────────────────────────────────────
+function getCookieR(name) {
+  let v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : null;
+}
+
+async function addPlayer(participantId) {
+  const name = document.getElementById('pname-' + participantId).value.trim();
+  const jersey = document.getElementById('pnum-' + participantId).value.trim();
+  if (!name) return;
+  const res = await fetch(`/facilitator/participant/${participantId}/add-player/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookieR('csrftoken')},
+    body: JSON.stringify({name, jersey_number: jersey})
+  });
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById('pname-' + participantId).value = '';
+    document.getElementById('pnum-' + participantId).value = '';
+    // Remove "no players" placeholder if present
+    const noEl = document.getElementById('no-players-' + participantId);
+    if (noEl) noEl.remove();
+    // Append new player row
+    const container = document.getElementById('players-' + participantId);
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between';
+    row.style = 'padding:5px 8px;border-radius:6px;background:var(--surface);';
+    row.id = 'player-row-' + data.id;
+    row.innerHTML = `
+      <div class="flex items-center gap-2">
+        ${data.jersey_number ? `<span class="font-mono text-xs" style="color:var(--gold);min-width:20px;">#${data.jersey_number}</span>` : ''}
+        <span class="text-sm">${data.name}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-0 rounded-full" style="background:rgba(107,107,128,0.15);color:var(--muted);">Standby</span>
+        <select onchange="updatePlayerStatus(${data.id}, this.value)" style="width:auto;padding:2px 6px;font-size:0.75rem;">
+          <option value="standby" selected>Standby</option>
+          <option value="playing">Playing</option>
+          <option value="done">Done</option>
+        </select>
+        <button onclick="removePlayer(${data.id}, this)" style="background:none;border:none;color:#ff6464;cursor:pointer;font-size:0.9rem;" title="Remove">×</button>
+      </div>`;
+    container.appendChild(row);
+  }
+}
+
+async function removePlayer(playerId, btn) {
+  if (!confirm('Remove this player?')) return;
+  const res = await fetch(`/facilitator/player/${playerId}/remove/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookieR('csrftoken')},
+    body: '{}'
+  });
+  if ((await res.json()).success) {
+    document.getElementById('player-row-' + playerId)?.remove();
+  }
+}
+
+async function updatePlayerStatus(playerId, status) {
+  await fetch(`/facilitator/player/${playerId}/status/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookieR('csrftoken')},
+    body: JSON.stringify({status})
+  });
+}
+</script>
+
 {% endblock %}
