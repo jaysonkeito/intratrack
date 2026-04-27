@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="mb-6">
-  <a href="/sport/{{ sport.name }}/" class="text-xs" style="color:var(--muted);">← {{ sport.get_name_display }}</a>
+  <a href="/sport/{{ sport.slug }}/" class="text-xs" style="color:var(--muted);">← {{ sport.get_name_display }}</a>
   <h1 class="font-display text-5xl mt-1">{{ category.get_name_display|upper }}</h1>
   <p class="text-sm mt-1" style="color:var(--muted);">
     {% if category.bracket_type %}{{ category.get_bracket_type_display }} · {{ category.team_count }} Teams{% else %}Bracket not yet configured{% endif %}
@@ -260,7 +260,7 @@
 </div>
 
 <script>
-const SPORT = "{{ sport.name }}";
+const SPORT = "{{ sport.slug }}";
 const CAT = "{{ category.name }}";
 const IS_FAC = {{ is_facilitator|yesno:"true,false" }};
 

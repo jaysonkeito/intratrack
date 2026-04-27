@@ -137,7 +137,7 @@
       </a>
       <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1">
         {% for s in all_sports %}
-          <a href="/sport/{{ s.name }}/" class="sport-chip {% if request.resolver_match.kwargs.sport_name == s.name %}active{% endif %}">{{ s.get_name_display }}</a>
+          <a href="/sport/{{ s.slug }}/" class="sport-chip {% if request.resolver_match.kwargs.sport_slug == s.slug %}active{% endif %}">{{ s.get_name_display }}</a>
         {% endfor %}
       </div>
       <div class="flex items-center gap-3 flex-shrink-0">

@@ -20,7 +20,7 @@
 {% if categories %}
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
   {% for cat in categories %}
-  <a href="/sport/{{ sport.name }}/{{ cat.name }}/" class="card p-5 block" style="text-decoration:none;transition:border-color 0.2s,transform 0.15s;"
+  <a href="/sport/{{ sport.slug }}/{{ cat.name }}/" class="card p-5 block" style="text-decoration:none;transition:border-color 0.2s,transform 0.15s;"
     onmouseover="this.style.borderColor='var(--gold)';this.style.transform='translateY(-2px)'"
     onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
     <p class="font-mono text-xs mb-2" style="color:var(--gold);">CATEGORY</p>

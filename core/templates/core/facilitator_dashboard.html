@@ -24,7 +24,7 @@
         <span class="badge-scheduled">{{ cat.team_count }} Teams</span>
         <span class="badge-finished">Bracket Ready</span>
       </div>
-      <a href="/sport/{{ sport.name }}/{{ cat.name }}/" class="btn-gold" style="display:block;text-align:center;">Manage Bracket →</a>
+      <a href="/sport/{{ sport.slug }}/{{ cat.name }}/" class="btn-gold" style="display:block;text-align:center;">Manage Bracket →</a>
 
       <!-- Reset bracket — always available, no confirmation gate needed since we confirm via onsubmit -->
       <div class="mt-4" style="border-top:1px solid var(--border);padding-top:14px;">

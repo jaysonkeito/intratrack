@@ -5,21 +5,46 @@
 <div class="mb-8">
   <p class="font-mono text-xs mb-1" style="color:var(--gold);letter-spacing:0.2em;">HEAD COMMITTEE</p>
   <h1 class="font-display text-5xl">ADMIN DASHBOARD</h1>
-  <p class="text-sm mt-1" style="color:var(--muted);">Manage facilitators for all 8 sports.</p>
+  <p class="text-sm mt-1" style="color:var(--muted);">Manage sports, facilitators, and categories.</p>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
 
-  <!-- Add Facilitator -->
+  <!-- Add New Sport -->
   <div class="card p-6">
-    <h2 class="font-display text-2xl mb-5">ASSIGN FACILITATOR</h2>
-    <form method="POST" action="/admin-panel/facilitator/create/" class="flex flex-col gap-4">
+    <h2 class="font-display text-xl mb-4">➕ ADD NEW SPORT</h2>
+    <form method="POST" action="/admin-panel/sport/create/" class="flex flex-col gap-3">
+      {% csrf_token %}
+      <div>
+        <label class="text-xs mb-1 block" style="color:var(--muted);">SPORT NAME</label>
+        <input type="text" name="sport_name" placeholder="e.g. Arnis, Swimming" required />
+      </div>
+      <div>
+        <label class="text-xs mb-2 block" style="color:var(--muted);">CATEGORIES</label>
+        <div class="flex flex-col gap-1">
+          {% for key, label in all_categories %}
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="categories" value="{{ key }}"
+              style="width:auto;padding:0;accent-color:var(--gold);" />
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <button type="submit" class="btn-gold mt-1">Create Sport</button>
+    </form>
+  </div>
+
+  <!-- Assign Facilitator -->
+  <div class="card p-6">
+    <h2 class="font-display text-xl mb-4">⚡ ASSIGN FACILITATOR</h2>
+    <form method="POST" action="/admin-panel/facilitator/create/" class="flex flex-col gap-3">
       {% csrf_token %}
       <div>
         <label class="text-xs mb-1 block" style="color:var(--muted);">SPORT</label>
         <select name="sport">
           {% for sport in sports %}
-          <option value="{{ sport.name }}">{{ sport.get_name_display }}{% if sport.facilitator %} ✓ assigned{% endif %}</option>
+          <option value="{{ sport.slug }}">{{ sport.name }}{% if sport.facilitator %} ✓{% endif %}</option>
           {% endfor %}
         </select>
       </div>
@@ -28,46 +53,78 @@
         <input type="text" name="display_name" placeholder="e.g. Juan dela Cruz" required />
       </div>
       <div>
-        <label class="text-xs mb-1 block" style="color:var(--muted);">USERNAME <span style="color:var(--text);">(for login)</span></label>
-        <input type="text" name="username" placeholder="e.g. fac_basketball" required />
+        <label class="text-xs mb-1 block" style="color:var(--muted);">USERNAME</label>
+        <input type="text" name="username" placeholder="e.g. Basketball" required />
       </div>
       <div>
         <label class="text-xs mb-1 block" style="color:var(--muted);">PASSWORD</label>
         <input type="password" name="password" placeholder="Set a password" />
-        <p class="text-xs mt-1" style="color:var(--muted);">Leave blank if reassigning an existing account.</p>
       </div>
       <button type="submit" class="btn-gold">Assign Facilitator</button>
     </form>
   </div>
 
-  <!-- Current Facilitators -->
-  <div>
-    <h2 class="font-display text-2xl mb-5">CURRENT FACILITATORS</h2>
+  <!-- Quick Links -->
+  <div class="card p-6">
+    <h2 class="font-display text-xl mb-4">🔗 QUICK LINKS</h2>
     <div class="flex flex-col gap-3">
-      {% for sport in sports %}
-      <div class="card p-4 flex items-center justify-between gap-4">
-        <div class="flex-1">
-          <p class="font-medium text-sm">{{ sport.get_name_display }}</p>
-          {% if sport.facilitator %}
-            <p class="text-xs mt-1" style="color:#64ff96;">⚡ {{ sport.facilitator_display_name|default:sport.facilitator.username }}</p>
-            <p class="text-xs" style="color:var(--muted);">@{{ sport.facilitator.username }}</p>
-          {% else %}
-            <p class="text-xs mt-1" style="color:var(--muted);">No facilitator assigned</p>
-          {% endif %}
-        </div>
-        <div class="flex gap-2 flex-shrink-0">
-          {% if sport.facilitator %}
-          <form method="POST" action="/admin-panel/facilitator/remove/{{ sport.name }}/" onsubmit="return confirm('Remove facilitator from {{ sport.get_name_display }}?')">
-            {% csrf_token %}
-            <button type="submit" style="background:rgba(255,100,100,0.1);color:#ff6464;border:1px solid rgba(255,100,100,0.3);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Remove</button>
-          </form>
-          {% endif %}
-          <a href="/sport/{{ sport.name }}/" class="btn-gold" style="font-size:0.8rem;padding:5px 12px;">View →</a>
-        </div>
-      </div>
-      {% endfor %}
+      <a href="/admin/" class="btn-gold" style="display:block;text-align:center;">Django Admin Panel</a>
+      <p class="text-xs" style="color:var(--muted);">Use Django Admin to: edit sport details, manage all accounts, view all matches, adjust site year/name.</p>
+      <hr style="border-color:var(--border);" />
+      <p class="text-xs font-mono" style="color:var(--gold);">YOUR ACCOUNT</p>
+      <p class="text-sm">Logged in as <strong>{{ request.user.username }}</strong></p>
     </div>
   </div>
 
 </div>
+
+<!-- Sports & Facilitators Table -->
+<h2 class="font-display text-2xl mb-4">ALL SPORTS</h2>
+<div class="flex flex-col gap-3">
+  {% for sport in sports %}
+  <div class="card p-4">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div class="flex-1">
+        <div class="flex items-center gap-3 mb-1 flex-wrap">
+          <p class="font-display text-xl">{{ sport.name }}</p>
+          <span class="font-mono text-xs" style="color:var(--muted);">slug: {{ sport.slug }}</span>
+        </div>
+        <!-- Categories -->
+        <div class="flex gap-1 flex-wrap mb-2">
+          {% for cat in sport.categories.all %}
+          <span class="badge-scheduled">{{ cat.get_name_display }}</span>
+          {% empty %}
+          <span class="text-xs" style="color:var(--muted);">No categories configured</span>
+          {% endfor %}
+        </div>
+        <!-- Facilitator -->
+        {% if sport.facilitator %}
+          <p class="text-sm" style="color:#64ff96;">
+            ⚡ <strong>{{ sport.facilitator_display_name|default:sport.facilitator.username }}</strong>
+            <span style="color:var(--muted);">· @{{ sport.facilitator.username }}</span>
+          </p>
+        {% else %}
+          <p class="text-sm" style="color:var(--muted);">No facilitator assigned</p>
+        {% endif %}
+      </div>
+      <div class="flex gap-2 items-center flex-shrink-0">
+        {% if sport.facilitator %}
+        <form method="POST" action="/admin-panel/facilitator/remove/{{ sport.slug }}/"
+          onsubmit="return confirm('Remove facilitator from {{ sport.name }}?')">
+          {% csrf_token %}
+          <button type="submit" style="background:rgba(255,100,100,0.1);color:#ff6464;border:1px solid rgba(255,100,100,0.3);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Remove Fac.</button>
+        </form>
+        {% endif %}
+        <a href="/sport/{{ sport.slug }}/" class="btn-gold" style="font-size:0.8rem;padding:5px 14px;">View →</a>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card p-8 text-center" style="color:var(--muted);">
+    <p class="font-display text-2xl mb-2">NO SPORTS YET</p>
+    <p class="text-sm">Add your first sport using the form above.</p>
+  </div>
+  {% endfor %}
+</div>
+
 {% endblock %}

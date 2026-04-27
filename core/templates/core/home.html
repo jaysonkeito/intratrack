@@ -7,7 +7,7 @@
   <h1 class="font-display text-7xl mb-4" style="line-height:1;">
     {{ site_settings.event_name|upper }} <span style="color:var(--gold);">{{ site_settings.event_year }}</span>
   </h1>
-  <p style="color:var(--muted);max-width:480px;margin:0 auto;" class="text-sm">Real-time scores and standings for all 8 intramural sports. Auto-refreshes every 3 seconds.</p>
+  <!--<p style="color:var(--muted);max-width:480px;margin:0 auto;" class="text-sm">Real-time scores and standings for all 8 intramural sports. Auto-refreshes every 3 seconds.</p>-->
 </div>
 
 <!-- NOW PLAYING / UP NEXT -->
@@ -67,7 +67,7 @@
 <h2 class="font-display text-3xl mb-6">ALL SPORTS</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
   {% for sport in sports %}
-  <a href="/sport/{{ sport.name }}/" class="card p-5 block" style="text-decoration:none;transition:border-color 0.2s,transform 0.15s;"
+  <a href="/sport/{{ sport.slug }}/" class="card p-5 block" style="text-decoration:none;transition:border-color 0.2s,transform 0.15s;"
     onmouseover="this.style.borderColor='var(--gold)';this.style.transform='translateY(-2px)'"
     onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
     <div class="flex items-start justify-between mb-2">

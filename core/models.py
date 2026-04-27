@@ -1,18 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models import Q
+from django.utils.text import slugify
 
 
-SPORT_CHOICES = [
-    ('basketball', 'Basketball'),
-    ('softball', 'Softball'),
-    ('badminton', 'Badminton'),
-    ('sepak_takraw', 'Sepak Takraw'),
-    ('chess', 'Chess'),
-    ('table_tennis', 'Table Tennis'),
-    ('volleyball', 'Volleyball'),
-    ('soccer', 'Soccer'),
-]
+# ─── Category & College constants (these are fixed by intramurals rules) ─────
 
 CATEGORY_CHOICES = [
     ('men', 'Men'),
@@ -23,17 +14,6 @@ CATEGORY_CHOICES = [
     ('women_doubles', 'Women Doubles'),
     ('mixed', 'Mixed'),
 ]
-
-SPORT_CATEGORIES = {
-    'basketball':   ['men', 'women'],
-    'softball':     ['women'],
-    'badminton':    ['men_single', 'men_doubles', 'women_single', 'women_doubles', 'mixed'],
-    'sepak_takraw': ['men'],
-    'chess':        ['men', 'women'],
-    'table_tennis': ['men_single', 'men_doubles', 'women_single', 'women_doubles', 'mixed'],
-    'volleyball':   ['men', 'women'],
-    'soccer':       ['men', 'women'],
-}
 
 COLLEGE_CHOICES = [
     ('CAF',  'College of Agriculture and Forestry'),
@@ -50,11 +30,22 @@ BRACKET_CHOICES = [
     ('round_robin',        'Round Robin'),
 ]
 
+ALL_POSSIBLE_CATEGORIES = [
+    ('men', 'Men'),
+    ('women', 'Women'),
+    ('men_single', 'Men Single'),
+    ('men_doubles', 'Men Doubles'),
+    ('women_single', 'Women Single'),
+    ('women_doubles', 'Women Doubles'),
+    ('mixed', 'Mixed'),
+]
+
+
+# ─── Site Settings ────────────────────────────────────────────────────────────
 
 class SiteSettings(models.Model):
-    """Singleton model for site-wide settings editable from Django admin."""
-    event_year = models.CharField(max_length=10, default='2026')
-    event_name = models.CharField(max_length=100, default='Intramurals')
+    event_year  = models.CharField(max_length=10, default='2026')
+    event_name  = models.CharField(max_length=100, default='Intramurals')
 
     class Meta:
         verbose_name = 'Site Settings'
@@ -69,29 +60,63 @@ class SiteSettings(models.Model):
         return obj
 
 
+# ─── Sport (now fully dynamic) ────────────────────────────────────────────────
+
 class Sport(models.Model):
-    name = models.CharField(max_length=50, choices=SPORT_CHOICES, unique=True)
-    facilitator = models.OneToOneField(
-        User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='facilitated_sport'
-    )
+    name         = models.CharField(max_length=80, unique=True,
+                       help_text="Full sport name, e.g. 'Basketball' or 'Arnis'")
+    slug         = models.SlugField(max_length=80, unique=True, blank=True,
+                       help_text="Auto-generated URL key. Leave blank.")
+    facilitator  = models.OneToOneField(
+                       User, on_delete=models.SET_NULL, null=True, blank=True,
+                       related_name='facilitated_sport')
     facilitator_display_name = models.CharField(
-        max_length=100, blank=True,
-        help_text="Full name of the facilitator shown to viewers"
-    )
+                       max_length=100, blank=True,
+                       help_text="Full name of facilitator shown to viewers")
+    order        = models.PositiveIntegerField(default=0,
+                       help_text="Display order on the homepage (lower = first)")
+
+    class Meta:
+        ordering = ['order', 'name']
 
     def __str__(self):
-        return self.get_name_display()
+        return self.name
 
-    def get_categories(self):
-        return SPORT_CATEGORIES.get(self.name, [])
+    # Keep get_name_display() compatible with old template calls
+    def get_name_display(self):
+        return self.name
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+
+# ─── SportCategoryConfig — which categories a sport uses ─────────────────────
+
+class SportCategoryConfig(models.Model):
+    """Admin selects which categories apply to a sport."""
+    sport        = models.ForeignKey(Sport, on_delete=models.CASCADE,
+                       related_name='category_configs')
+    category_key = models.CharField(max_length=30, choices=ALL_POSSIBLE_CATEGORIES)
+
+    class Meta:
+        unique_together = ('sport', 'category_key')
+        ordering = ['category_key']
+
+    def __str__(self):
+        return f"{self.sport.name} — {self.get_category_key_display()}"
+
+
+# ─── Category (bracket instance for a sport+category combo) ──────────────────
 
 class Category(models.Model):
-    sport = models.ForeignKey(Sport, on_delete=models.CASCADE, related_name='categories')
-    name = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
-    bracket_type = models.CharField(max_length=30, choices=BRACKET_CHOICES, null=True, blank=True)
-    team_count = models.IntegerField(null=True, blank=True)
+    sport         = models.ForeignKey(Sport, on_delete=models.CASCADE,
+                        related_name='categories')
+    name          = models.CharField(max_length=30, choices=ALL_POSSIBLE_CATEGORIES)
+    bracket_type  = models.CharField(max_length=30, choices=BRACKET_CHOICES,
+                        null=True, blank=True)
+    team_count    = models.IntegerField(null=True, blank=True)
     bracket_generated = models.BooleanField(default=False)
 
     class Meta:
@@ -99,7 +124,7 @@ class Category(models.Model):
         ordering = ['name']
 
     def __str__(self):
-        return f"{self.sport.get_name_display()} — {self.get_name_display()}"
+        return f"{self.sport.name} — {self.get_name_display()}"
 
     def get_standings(self):
         participants = self.participants.all()
@@ -128,10 +153,14 @@ class Category(models.Model):
         return result
 
 
+# ─── Participant ───────────────────────────────────────────────────────────────
+
 class Participant(models.Model):
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='participants')
-    slot_label = models.CharField(max_length=10)
-    college = models.CharField(max_length=10, choices=COLLEGE_CHOICES, null=True, blank=True)
+    category     = models.ForeignKey(Category, on_delete=models.CASCADE,
+                       related_name='participants')
+    slot_label   = models.CharField(max_length=10)
+    college      = models.CharField(max_length=10, choices=COLLEGE_CHOICES,
+                       null=True, blank=True)
     is_eliminated = models.BooleanField(default=False)
 
     class Meta:
@@ -139,13 +168,13 @@ class Participant(models.Model):
         unique_together = ('category', 'slot_label')
 
     def __str__(self):
-        if self.college:
-            return f"{self.get_college_display()} ({self.slot_label})"
-        return f"{self.slot_label} (TBA)"
+        return f"{self.college or self.slot_label} ({self.category})"
 
     def display_name(self):
         return self.college if self.college else self.slot_label
 
+
+# ─── Match ────────────────────────────────────────────────────────────────────
 
 class Match(models.Model):
     STATUS_CHOICES = [
@@ -154,19 +183,23 @@ class Match(models.Model):
         ('finished',  'Finished'),
     ]
 
-    category      = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='matches')
-    participant_a  = models.ForeignKey(Participant, on_delete=models.SET_NULL, null=True, blank=True, related_name='matches_as_a')
-    participant_b  = models.ForeignKey(Participant, on_delete=models.SET_NULL, null=True, blank=True, related_name='matches_as_b')
-    score_a       = models.IntegerField(default=0)
-    score_b       = models.IntegerField(default=0)
-    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
-    round_number  = models.IntegerField(default=1)
-    match_number  = models.IntegerField(default=1)
-    bracket_slot  = models.CharField(max_length=20, blank=True)
+    category       = models.ForeignKey(Category, on_delete=models.CASCADE,
+                         related_name='matches')
+    participant_a  = models.ForeignKey(Participant, on_delete=models.SET_NULL,
+                         null=True, blank=True, related_name='matches_as_a')
+    participant_b  = models.ForeignKey(Participant, on_delete=models.SET_NULL,
+                         null=True, blank=True, related_name='matches_as_b')
+    score_a        = models.IntegerField(default=0)
+    score_b        = models.IntegerField(default=0)
+    status         = models.CharField(max_length=20, choices=STATUS_CHOICES,
+                         default='scheduled')
+    round_number   = models.IntegerField(default=1)
+    match_number   = models.IntegerField(default=1)
+    bracket_slot   = models.CharField(max_length=20, blank=True)
     scheduled_time = models.DateTimeField(null=True, blank=True)
-    venue         = models.CharField(max_length=100, blank=True)
-    is_next_up    = models.BooleanField(default=False)
-    updated_at    = models.DateTimeField(auto_now=True)
+    venue          = models.CharField(max_length=100, blank=True)
+    is_next_up     = models.BooleanField(default=False)
+    updated_at     = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['round_number', 'match_number']
@@ -189,11 +222,13 @@ class Match(models.Model):
         return None
 
 
+# ─── Announcement ─────────────────────────────────────────────────────────────
+
 class Announcement(models.Model):
-    message = models.CharField(max_length=300)
+    message    = models.CharField(max_length=300)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
+    is_active  = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['-created_at']
