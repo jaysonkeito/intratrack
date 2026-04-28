@@ -367,7 +367,7 @@ setInterval(poll, 3000);
           <p class="font-mono text-xs" style="color:var(--muted);">{{ p.slot_label }}</p>
           <p class="font-display text-xl">{{ p.display_name }}</p>
         </div>
-        <span class="text-xs" style="color:var(--muted);">{{ p.players.count }} player{{ p.players.count|pluralize }}</span>
+        <span class="text-xs" style="color:var(--muted);" id="player-count-{{ p.id }}" data-count="{{ p.players.count }}">{{ p.players.count }} player{{ p.players.count|pluralize }}</span>
       </div>
 
       <!-- Player list -->
@@ -438,6 +438,13 @@ async function addPlayer(participantId) {
     // Remove "no players" placeholder if present
     const noEl = document.getElementById('no-players-' + participantId);
     if (noEl) noEl.remove();
+    // Update player count in card header
+    const countEl = document.getElementById('player-count-' + participantId);
+    if (countEl) {
+      const current = parseInt(countEl.dataset.count || '0') + 1;
+      countEl.dataset.count = current;
+      countEl.textContent = current + ' player' + (current !== 1 ? 's' : '');
+    }
     // Append new player row
     const container = document.getElementById('players-' + participantId);
     const row = document.createElement('div');
@@ -469,8 +476,20 @@ async function removePlayer(playerId, btn) {
     headers: {'Content-Type':'application/json','X-CSRFToken':getCookieR('csrftoken')},
     body: '{}'
   });
-  if ((await res.json()).success) {
-    document.getElementById('player-row-' + playerId)?.remove();
+  const rowEl = document.getElementById('player-row-' + playerId);
+  if ((await res.json()).success && rowEl) {
+    // Find the participant container and update count
+    const container = rowEl.closest('[id^="roster-"]');
+    if (container) {
+      const pid = container.id.replace('roster-', '');
+      const countEl = document.getElementById('player-count-' + pid);
+      if (countEl) {
+        const current = Math.max(0, parseInt(countEl.dataset.count || '1') - 1);
+        countEl.dataset.count = current;
+        countEl.textContent = current + ' player' + (current !== 1 ? 's' : '');
+      }
+    }
+    rowEl.remove();
   }
 }
 
