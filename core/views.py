@@ -115,6 +115,16 @@ def compute_medal_tally():
     return result
 
 
+def get_college_logo_url(college_profiles, code):
+    profile = college_profiles.get(code)
+    if profile and profile.logo:
+        try:
+            return profile.logo.url
+        except Exception:
+            return None
+    return None
+
+
 # ─── Public Views ──────────────────────────────────────────────────────────────
 
 def home(request):
@@ -127,8 +137,18 @@ def home(request):
             for m in cat.matches.filter(is_next_up=True, status__in=['scheduled']):
                 up_next.append({'match': m, 'category': cat, 'sport': sport})
 
-    medal_tally = compute_medal_tally()
     college_profiles = {p.code: p for p in CollegeProfile.objects.all()}
+    medal_tally = compute_medal_tally()
+    # Attach logo_url directly to each tally item for easy template access
+    for item in medal_tally:
+        profile = college_profiles.get(item['code'])
+        if profile and profile.logo:
+            try:
+                item['logo_url'] = profile.logo.url
+            except Exception:
+                item['logo_url'] = None
+        else:
+            item['logo_url'] = None
 
     return render(request, 'core/home.html', {
         'sports': sports,

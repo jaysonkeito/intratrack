@@ -93,13 +93,9 @@
           <td class="px-5 py-4 font-mono font-bold rank-{% if forloop.counter <= 3 %}{{ forloop.counter }}{% endif %}">{{ forloop.counter }}</td>
           <td class="px-5 py-4">
             <div class="flex items-center gap-3">
-              {% with profile=college_profiles|dictsort:"code" %}
-              {% endwith %}
-              {% for code, profile in college_profiles.items %}
-                {% if code == t.code and profile.logo %}
-                <img src="{{ profile.logo.url }}" alt="{{ t.code }}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;" />
-                {% endif %}
-              {% endfor %}
+              {% if t.logo_url %}
+                <img src="{{ t.logo_url }}" alt="{{ t.code }}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;" />
+              {% endif %}
               <div>
                 <p class="font-medium">{{ t.code }}</p>
                 <p class="text-xs" style="color:var(--muted);">{{ t.name }}</p>
@@ -121,11 +117,9 @@
     {% for t in medal_tally %}
     <div class="card p-4 {% if forloop.first %}col-span-2{% endif %}">
       <div class="flex items-center gap-3 mb-3">
-        {% for code, profile in college_profiles.items %}
-          {% if code == t.code and profile.logo %}
-          <img src="{{ profile.logo.url }}" alt="{{ t.code }}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" />
-          {% endif %}
-        {% endfor %}
+        {% if t.logo_url %}
+          <img src="{{ t.logo_url }}" alt="{{ t.code }}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" />
+        {% endif %}
         <div>
           <p class="font-display text-lg">{{ t.code }}</p>
           <p class="text-xs" style="color:var(--muted);">Rank #{{ forloop.counter }}</p>
