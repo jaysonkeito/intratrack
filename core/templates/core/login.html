@@ -6,7 +6,7 @@
   <div class="card p-8" style="width:100%; max-width:400px;">
     <div class="text-center mb-8">
       <p class="font-mono text-xs mb-2" style="color:var(--gold); letter-spacing:0.2em;">RESTRICTED ACCESS</p>
-      <h1 class="font-display text-4xl">SCORER LOGIN</h1>
+      <h1 class="font-display text-4xl">LOGIN</h1>
     </div>
 
     {% if error %}
@@ -19,7 +19,7 @@
       {% csrf_token %}
       <div>
         <label class="text-xs mb-1 block" style="color:var(--muted);">USERNAME</label>
-        <input type="text" name="username" placeholder="scorer_basketball" autofocus />
+        <input type="text" name="username" placeholder="username" autofocus />
       </div>
       <div>
         <label class="text-xs mb-1 block" style="color:var(--muted);">PASSWORD</label>

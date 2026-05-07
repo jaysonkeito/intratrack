@@ -5,11 +5,12 @@ from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils.text import slugify
+from django.db.models import Q
 import json
 
 from .models import (
     Sport, SportCategoryConfig, Category, Participant, Match,
-    SiteSettings, Announcement,
+    SiteSettings, Announcement, CollegeProfile, Player,
     COLLEGE_CHOICES, BRACKET_CHOICES, ALL_POSSIBLE_CATEGORIES
 )
 from .bracket_engine import generate_bracket, advance_winner
@@ -54,7 +55,67 @@ def logout_view(request):
     return redirect('login')
 
 
-# ─── Public ───────────────────────────────────────────────────────────────────
+# ─── Medal Tally helper ───────────────────────────────────────────────────────
+
+def compute_medal_tally():
+    """
+    Compute gold/silver/bronze medals per college across all finished categories.
+    Gold = winner of the final match (or top standing in RR).
+    Silver = runner-up. Bronze = 3rd place (where applicable).
+    """
+    from collections import defaultdict
+    tally = defaultdict(lambda: {'gold': 0, 'silver': 0, 'bronze': 0, 'total': 0})
+
+    for category in Category.objects.filter(bracket_generated=True):
+        if category.bracket_type == 'round_robin':
+            standings = category.get_standings()
+            medals = [('gold', 0), ('silver', 1), ('bronze', 2)]
+            for medal, idx in medals:
+                if idx < len(standings):
+                    college = standings[idx]['participant'].college
+                    if college:
+                        tally[college][medal] += 1
+                        tally[college]['total'] += 1
+
+        elif category.bracket_type in ['single_elimination', 'double_elimination']:
+            # Grand final or highest round finished match
+            final = (Match.objects.filter(
+                category=category, status='finished', round_number=200
+            ).first() or
+            Match.objects.filter(
+                category=category, status='finished'
+            ).order_by('-round_number', '-match_number').first())
+
+            if final:
+                winner = final.winner_participant()
+                loser  = final.loser_participant()
+                if winner and winner.college:
+                    tally[winner.college]['gold'] += 1
+                    tally[winner.college]['total'] += 1
+                if loser and loser.college:
+                    tally[loser.college]['silver'] += 1
+                    tally[loser.college]['total'] += 1
+
+    # Build sorted list
+    result = []
+    profiles = {p.code: p for p in CollegeProfile.objects.all()}
+    for college_code, counts in tally.items():
+        profile = profiles.get(college_code)
+        result.append({
+            'code': college_code,
+            'name': profile.get_full_name() if profile else college_code,
+            'short_name': profile.short_name if profile else college_code,
+            'logo_url': profile.logo.url if profile and profile.logo else None,
+            'gold':   counts['gold'],
+            'silver': counts['silver'],
+            'bronze': counts['bronze'],
+            'total':  counts['total'],
+        })
+    result.sort(key=lambda x: (-x['gold'], -x['silver'], -x['bronze']))
+    return result
+
+
+# ─── Public Views ──────────────────────────────────────────────────────────────
 
 def home(request):
     sports = Sport.objects.prefetch_related('categories__matches').all()
@@ -63,11 +124,23 @@ def home(request):
         for cat in sport.categories.all():
             for m in cat.matches.filter(status='ongoing'):
                 now_playing.append({'match': m, 'category': cat, 'sport': sport})
-            for m in cat.matches.filter(is_next_up=True):
+            for m in cat.matches.filter(is_next_up=True, status__in=['scheduled']):
                 up_next.append({'match': m, 'category': cat, 'sport': sport})
+
+    medal_tally = compute_medal_tally()
+    college_profiles = {p.code: p for p in CollegeProfile.objects.all()}
+
     return render(request, 'core/home.html', {
-        'sports': sports, 'now_playing': now_playing, 'up_next': up_next,
+        'sports': sports,
+        'now_playing': now_playing,
+        'up_next': up_next,
+        'medal_tally': medal_tally,
+        'college_profiles': college_profiles,
     })
+
+
+def medal_tally_json(request):
+    return JsonResponse({'tally': compute_medal_tally()})
 
 
 def sport_detail(request, sport_slug):
@@ -98,6 +171,8 @@ def category_detail(request, sport_slug, cat_name):
         else:
             winners_rounds.setdefault(m.round_number, []).append(m)
 
+    college_profiles = {p.code: p for p in CollegeProfile.objects.all()}
+
     return render(request, 'core/category_detail.html', {
         'sport': sport, 'category': category, 'matches': matches,
         'standings': standings,
@@ -106,7 +181,8 @@ def category_detail(request, sport_slug, cat_name):
         'grand_final': grand_final,
         'is_facilitator': fac,
         'colleges': COLLEGE_CHOICES,
-        'participants': category.participants.all(),
+        'participants': category.participants.prefetch_related('players').all(),
+        'college_profiles': college_profiles,
     })
 
 
@@ -121,7 +197,9 @@ def category_scores_json(request, sport_slug, cat_name):
              'team_b': m.participant_b.display_name() if m.participant_b else 'TBD',
              'score_a': m.score_a, 'score_b': m.score_b,
              'status': m.status, 'status_display': m.get_status_display(),
-             'is_next_up': m.is_next_up} for m in matches]
+             'is_next_up': m.is_next_up,
+             'scheduled_time': m.scheduled_time.strftime('%b %d, %I:%M %p') if m.scheduled_time else '',
+             } for m in matches]
     standings = []
     if category.bracket_type == 'round_robin':
         for s in category.get_standings():
@@ -140,11 +218,12 @@ def home_live_json(request):
             for m in cat.matches.filter(status='ongoing'):
                 now_playing.append({
                     'sport': sport.name, 'category': cat.get_name_display(),
+                    'sport_slug': sport.slug, 'cat_name': cat.name,
                     'team_a': m.participant_a.display_name() if m.participant_a else 'TBD',
                     'team_b': m.participant_b.display_name() if m.participant_b else 'TBD',
                     'score_a': m.score_a, 'score_b': m.score_b,
                 })
-            for m in cat.matches.filter(is_next_up=True):
+            for m in cat.matches.filter(is_next_up=True, status='scheduled'):
                 up_next.append({
                     'sport': sport.name, 'category': cat.get_name_display(),
                     'team_a': m.participant_a.display_name() if m.participant_a else 'TBD',
@@ -160,6 +239,18 @@ def announcements_json(request):
     return JsonResponse({'announcements': anns})
 
 
+def category_players_json(request, sport_slug, cat_name):
+    sport = get_object_or_404(Sport, slug=sport_slug)
+    category = get_object_or_404(Category, sport=sport, name=cat_name)
+    data = []
+    for p in category.participants.prefetch_related('players').all():
+        players = [{'id': pl.id, 'name': pl.name,
+                    'jersey_number': pl.jersey_number, 'status': pl.status}
+                   for pl in p.players.all()]
+        data.append({'slot': p.slot_label, 'college': p.display_name(), 'players': players})
+    return JsonResponse({'roster': data})
+
+
 # ─── Admin Panel ──────────────────────────────────────────────────────────────
 
 @login_required
@@ -167,28 +258,24 @@ def admin_dashboard(request):
     if not is_admin(request.user):
         return redirect('home')
     sports = Sport.objects.prefetch_related('categories', 'category_configs').all()
-    all_categories = ALL_POSSIBLE_CATEGORIES
     return render(request, 'core/admin_dashboard.html', {
         'sports': sports,
-        'all_categories': all_categories,
+        'all_categories': ALL_POSSIBLE_CATEGORIES,
     })
 
 
 @login_required
 @require_POST
 def create_sport(request):
-    """Admin creates a new sport dynamically."""
     if not is_admin(request.user):
         return redirect('home')
     sport_name = request.POST.get('sport_name', '').strip()
     if not sport_name:
         return redirect('admin_dashboard')
     slug = slugify(sport_name)
-    sport, created = Sport.objects.get_or_create(slug=slug, defaults={'name': sport_name})
-    if not created:
-        sport.name = sport_name
-        sport.save()
-    # Assign selected categories
+    sport, _ = Sport.objects.get_or_create(slug=slug, defaults={'name': sport_name})
+    sport.name = sport_name
+    sport.save()
     selected_cats = request.POST.getlist('categories')
     SportCategoryConfig.objects.filter(sport=sport).delete()
     for cat_key in selected_cats:
@@ -202,10 +289,10 @@ def create_sport(request):
 def create_facilitator(request):
     if not is_admin(request.user):
         return redirect('home')
-    username = request.POST.get('username', '').strip()
-    password = request.POST.get('password', '').strip()
+    username     = request.POST.get('username', '').strip()
+    password     = request.POST.get('password', '').strip()
     display_name = request.POST.get('display_name', '').strip()
-    sport_slug = request.POST.get('sport')
+    sport_slug   = request.POST.get('sport')
     sport = get_object_or_404(Sport, slug=sport_slug)
 
     if User.objects.filter(username=username).exists():
@@ -213,14 +300,11 @@ def create_facilitator(request):
     else:
         user = User.objects.create_user(username=username, password=password or 'intra2026')
 
-    # Remove from any previous sport
     Sport.objects.filter(facilitator=user).update(facilitator=None)
-
     sport.facilitator = user
     sport.facilitator_display_name = display_name
     sport.save()
 
-    # Ensure categories exist for this sport based on configs
     for config in sport.category_configs.all():
         Category.objects.get_or_create(sport=sport, name=config.category_key)
 
@@ -259,16 +343,43 @@ def setup_bracket(request, cat_id):
     if not is_facilitator_for(request.user, category.sport):
         return redirect('home')
     bracket_type = request.POST.get('bracket_type')
-    team_count = int(request.POST.get('team_count', 4))
+    team_count   = int(request.POST.get('team_count', 4))
     Match.objects.filter(category=category).delete()
     Participant.objects.filter(category=category).delete()
     category.bracket_type = bracket_type
-    category.team_count = team_count
+    category.team_count   = team_count
     category.bracket_generated = False
     category.save()
     for i in range(team_count):
         Participant.objects.create(category=category, slot_label=f"Team {chr(65+i)}")
     generate_bracket(category)
+    return redirect('facilitator_dashboard')
+
+
+@login_required
+@require_POST
+def reset_scores(request, cat_id):
+    category = get_object_or_404(Category, id=cat_id)
+    if not is_facilitator_for(request.user, category.sport):
+        return redirect('home')
+    Match.objects.filter(category=category).update(
+        score_a=0, score_b=0, status='scheduled', is_next_up=False
+    )
+    return redirect('facilitator_dashboard')
+
+
+@login_required
+@require_POST
+def full_reset_bracket(request, cat_id):
+    category = get_object_or_404(Category, id=cat_id)
+    if not is_facilitator_for(request.user, category.sport):
+        return redirect('home')
+    Match.objects.filter(category=category).delete()
+    Participant.objects.filter(category=category).delete()
+    category.bracket_type = None
+    category.team_count   = None
+    category.bracket_generated = False
+    category.save()
     return redirect('facilitator_dashboard')
 
 
@@ -301,10 +412,32 @@ def update_match_score(request, match_id):
     match.save()
     if match.status == 'finished':
         advance_winner(match)
-        # Issue 3 fix: auto-clear next_up when match finishes
         match.is_next_up = False
         match.save()
     return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def update_match_details(request, match_id):
+    """Facilitator sets scheduled time and venue."""
+    match = get_object_or_404(Match, id=match_id)
+    if not is_facilitator_for(request.user, match.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    data = json.loads(request.body)
+    if 'venue' in data:
+        match.venue = data['venue']
+    if data.get('scheduled_time'):
+        from django.utils.dateparse import parse_datetime
+        dt = parse_datetime(data['scheduled_time'])
+        if dt:
+            match.scheduled_time = dt
+    match.save()
+    return JsonResponse({
+        'success': True,
+        'scheduled_time': match.scheduled_time.strftime('%b %d, %I:%M %p') if match.scheduled_time else '',
+        'venue': match.venue,
+    })
 
 
 @login_required
@@ -319,6 +452,50 @@ def set_next_up(request, match_id):
         match.is_next_up = True
         match.save()
     return JsonResponse({'success': True})
+
+
+# ─── Players ──────────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def add_player(request, participant_id):
+    participant = get_object_or_404(Participant, id=participant_id)
+    if not is_facilitator_for(request.user, participant.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    data = json.loads(request.body)
+    name = data.get('name', '').strip()
+    if not name:
+        return JsonResponse({'error': 'Name required'}, status=400)
+    player = Player.objects.create(
+        participant=participant, name=name,
+        jersey_number=data.get('jersey_number', '').strip()
+    )
+    return JsonResponse({'success': True, 'id': player.id, 'name': player.name,
+                         'jersey_number': player.jersey_number, 'status': player.status})
+
+
+@login_required
+@require_POST
+def remove_player(request, player_id):
+    player = get_object_or_404(Player, id=player_id)
+    if not is_facilitator_for(request.user, player.participant.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    player.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def update_player_status(request, player_id):
+    player = get_object_or_404(Player, id=player_id)
+    if not is_facilitator_for(request.user, player.participant.category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    data = json.loads(request.body)
+    status = data.get('status')
+    if status in ['standby', 'playing', 'done']:
+        player.status = status
+        player.save()
+    return JsonResponse({'success': True, 'status': player.status})
 
 
 # ─── Announcements ────────────────────────────────────────────────────────────
@@ -345,95 +522,3 @@ def remove_announcement(request, ann_id):
     ann.is_active = False
     ann.save()
     return JsonResponse({'success': True})
-
-
-# ─── Score Reset (keep bracket, zero scores) ─────────────────────────────────
-
-@login_required
-@require_POST
-def reset_scores(request, cat_id):
-    """Reset all scores to 0 and status to Scheduled — keeps bracket intact."""
-    category = get_object_or_404(Category, id=cat_id)
-    if not is_facilitator_for(request.user, category.sport):
-        return redirect('home')
-    Match.objects.filter(category=category).update(
-        score_a=0, score_b=0, status='scheduled', is_next_up=False
-    )
-    return redirect('facilitator_dashboard')
-
-
-# ─── Full Bracket Reset ───────────────────────────────────────────────────────
-
-@login_required
-@require_POST
-def full_reset_bracket(request, cat_id):
-    """Wipe bracket completely — back to 'not yet set up'."""
-    category = get_object_or_404(Category, id=cat_id)
-    if not is_facilitator_for(request.user, category.sport):
-        return redirect('home')
-    Match.objects.filter(category=category).delete()
-    Participant.objects.filter(category=category).delete()
-    category.bracket_type = None
-    category.team_count = None
-    category.bracket_generated = False
-    category.save()
-    return redirect('facilitator_dashboard')
-
-
-# ─── Player Management ────────────────────────────────────────────────────────
-
-@login_required
-@require_POST
-def add_player(request, participant_id):
-    from .models import Player
-    participant = get_object_or_404(Participant, id=participant_id)
-    if not is_facilitator_for(request.user, participant.category.sport):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
-    data = json.loads(request.body)
-    name = data.get('name', '').strip()
-    jersey = data.get('jersey_number', '').strip()
-    if not name:
-        return JsonResponse({'error': 'Name required'}, status=400)
-    player = Player.objects.create(participant=participant, name=name, jersey_number=jersey)
-    return JsonResponse({'success': True, 'id': player.id, 'name': player.name,
-                         'jersey_number': player.jersey_number, 'status': player.status})
-
-
-@login_required
-@require_POST
-def remove_player(request, player_id):
-    from .models import Player
-    player = get_object_or_404(Player, id=player_id)
-    if not is_facilitator_for(request.user, player.participant.category.sport):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
-    player.delete()
-    return JsonResponse({'success': True})
-
-
-@login_required
-@require_POST
-def update_player_status(request, player_id):
-    from .models import Player
-    player = get_object_or_404(Player, id=player_id)
-    if not is_facilitator_for(request.user, player.participant.category.sport):
-        return JsonResponse({'error': 'Not authorized'}, status=403)
-    data = json.loads(request.body)
-    status = data.get('status')
-    if status in ['standby', 'playing', 'done']:
-        player.status = status
-        player.save()
-    return JsonResponse({'success': True, 'status': player.status})
-
-
-def category_players_json(request, sport_slug, cat_name):
-    """Public endpoint — viewers can poll player rosters."""
-    from .models import Player
-    sport = get_object_or_404(Sport, slug=sport_slug)
-    category = get_object_or_404(Category, sport=sport, name=cat_name)
-    data = []
-    for p in category.participants.prefetch_related('players').all():
-        players = [{'id': pl.id, 'name': pl.name,
-                    'jersey_number': pl.jersey_number, 'status': pl.status}
-                   for pl in p.players.all()]
-        data.append({'slot': p.slot_label, 'college': p.display_name(), 'players': players})
-    return JsonResponse({'roster': data})

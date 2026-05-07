@@ -11,10 +11,10 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
+    'localhost', '127.0.0.1',
     'jaysonkeito.pythonanywhere.com',
-    '*',  # remove in strict production
+    'intratrack.pythonanywhere.com',
+    '*',
 ]
 
 INSTALLED_APPS = [
@@ -71,8 +71,19 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Manila'
 USE_I18N = True
 USE_TZ = True
+
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Media (college logos)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/login/'
+
+# Session auto-logout after 15 minutes of inactivity
+SESSION_COOKIE_AGE = 900           # 15 min in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # reset timer on every request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True

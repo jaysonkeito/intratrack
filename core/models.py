@@ -237,17 +237,55 @@ class Announcement(models.Model):
         return self.message[:60]
 
 
+# ─── College Profile (logo + medal tally) ────────────────────────────────────
+
+class CollegeProfile(models.Model):
+    code        = models.CharField(max_length=10, unique=True,
+                      choices=[
+                          ('CAF',  'College of Agriculture and Forestry'),
+                          ('CAS',  'College of Arts and Sciences'),
+                          ('CBA',  'College of Business Administration'),
+                          ('CIT',  'College of Industrial Technology'),
+                          ('CTED', 'College of Teacher Education'),
+                          ('CCJE', 'College of Criminal Justice Education'),
+                      ])
+    logo        = models.ImageField(upload_to='college_logos/', null=True, blank=True,
+                      help_text="Upload college logo/icon (PNG or SVG recommended)")
+    full_name   = models.CharField(max_length=150, blank=True)
+    short_name  = models.CharField(max_length=30, blank=True,
+                      help_text="e.g. 'Agriculture' shown under logo")
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = 'College Profile'
+        verbose_name_plural = 'College Profiles'
+
+    def __str__(self):
+        return self.code
+
+    def get_full_name(self):
+        return self.full_name or dict([
+            ('CAF',  'College of Agriculture and Forestry'),
+            ('CAS',  'College of Arts and Sciences'),
+            ('CBA',  'College of Business Administration'),
+            ('CIT',  'College of Industrial Technology'),
+            ('CTED', 'College of Teacher Education'),
+            ('CCJE', 'College of Criminal Justice Education'),
+        ]).get(self.code, self.code)
+
+
+# ─── Player ────────────────────────────────────────────────────────────────────
+
 class Player(models.Model):
-    """A named player belonging to a participant slot in a category."""
-    participant  = models.ForeignKey(Participant, on_delete=models.CASCADE,
-                       related_name='players')
-    name         = models.CharField(max_length=100)
+    participant   = models.ForeignKey('Participant', on_delete=models.CASCADE,
+                        related_name='players')
+    name          = models.CharField(max_length=100)
     jersey_number = models.CharField(max_length=10, blank=True)
-    status       = models.CharField(max_length=20, choices=[
-                       ('standby', 'Standby'),
-                       ('playing', 'Playing'),
-                       ('done',    'Done'),
-                   ], default='standby')
+    status        = models.CharField(max_length=20, choices=[
+                        ('standby', 'Standby'),
+                        ('playing', 'Playing'),
+                        ('done',    'Done'),
+                    ], default='standby')
 
     class Meta:
         ordering = ['name']

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{% block title %}IntraTrack{% endblock %}</title>
+  <title>{% block title %}InTrack{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
   <style>
@@ -26,80 +26,39 @@
     .rank-1{color:var(--gold);} .rank-2{color:#c0c0c0;} .rank-3{color:#cd7f32;}
     .scrollbar-hide::-webkit-scrollbar{display:none;}
     details summary{list-style:none;} details summary::-webkit-details-marker{display:none;}
+    #ann-banner { background:linear-gradient(90deg,#1a1400,#1f1800,#1a1400); border-bottom:1px solid rgba(245,197,24,0.25); overflow:hidden; }
+    .ann-slide { display:none; align-items:center; justify-content:center; gap:10px; padding:9px 16px; text-align:center; animation:ann-fade 0.5s ease; }
+    .ann-slide.active { display:flex; }
+    @keyframes ann-fade { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+    .ann-dot { width:6px; height:6px; border-radius:50%; background:rgba(245,197,24,0.3); cursor:pointer; transition:background 0.2s; border:none; padding:0; flex-shrink:0; }
+    .ann-dot.active { background:var(--gold); }
+    .ann-remove-btn { background:none; border:none; color:rgba(245,197,24,0.4); cursor:pointer; font-size:1rem; line-height:1; transition:color 0.2s; padding:0 2px; flex-shrink:0; }
+    .ann-remove-btn:hover { color:#ff6464; }
+    #ann-post-panel { background:rgba(245,197,24,0.04); border-bottom:1px solid rgba(245,197,24,0.12); padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
-    /* ── Announcement Banner ── */
-    #ann-banner {
-      background: linear-gradient(90deg, #1a1400, #1f1800, #1a1400);
-      border-bottom: 1px solid rgba(245,197,24,0.25);
-      overflow: hidden;
-      position: relative;
-    }
-    .ann-slide {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 9px 16px;
-      text-align: center;
-      animation: ann-fade 0.5s ease;
-    }
-    .ann-slide.active { display: flex; }
-    @keyframes ann-fade { from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:translateY(0)} }
-    .ann-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: rgba(245,197,24,0.3);
-      cursor: pointer; transition: background 0.2s;
-      border: none; padding: 0; flex-shrink: 0;
-    }
-    .ann-dot.active { background: var(--gold); }
-    .ann-remove-btn {
-      background: none; border: none; color: rgba(245,197,24,0.4);
-      cursor: pointer; font-size: 1rem; line-height: 1;
-      transition: color 0.2s; padding: 0 2px; flex-shrink: 0;
-    }
-    .ann-remove-btn:hover { color: #ff6464; }
-
-    /* ── Post Announcement Panel (staff only) ── */
-    #ann-post-panel {
-      background: rgba(245,197,24,0.04);
-      border-bottom: 1px solid rgba(245,197,24,0.12);
-      padding: 8px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+    /* Auto-logout warning */
+    #session-warning { display:none; position:fixed; bottom:20px; right:20px; z-index:9999; background:#1a1400; border:1px solid var(--gold); border-radius:12px; padding:14px 18px; max-width:280px; box-shadow:0 4px 24px rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
 
-  <!-- ── Announcement Banner ───────────────────────────────────────────── -->
   {% if announcements %}
   <div id="ann-banner">
-    <div class="flex items-center" style="max-width:1280px;margin:0 auto;padding:0 16px;position:relative;">
-      <!-- 📢 label -->
+    <div class="flex items-center" style="max-width:1280px;margin:0 auto;padding:0 16px;">
       <span class="font-mono text-xs flex-shrink-0 mr-3" style="color:var(--gold);letter-spacing:0.1em;">📢 ANNOUNCEMENT</span>
-
-      <!-- Slides -->
       <div class="flex-1 relative" style="overflow:hidden;">
         {% for ann in announcements %}
         <div class="ann-slide {% if forloop.first %}active{% endif %}" data-ann-id="{{ ann.id }}">
           <span class="text-sm font-medium" style="color:var(--gold);">{{ ann.message }}</span>
-          {% if request.user.is_authenticated %}
-            {% if request.user.is_superuser or request.user.facilitated_sport %}
-              <button class="ann-remove-btn" onclick="removeAnnouncement({{ ann.id }}, this)" title="Remove">×</button>
-            {% endif %}
-          {% endif %}
+          {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}
+          <button class="ann-remove-btn" onclick="removeAnnouncement({{ ann.id }}, this)" title="Remove">×</button>
+          {% endif %}{% endif %}
         </div>
         {% endfor %}
       </div>
-
-      <!-- Dots (only if multiple) -->
       {% if announcements|length > 1 %}
       <div class="flex items-center gap-1 ml-3 flex-shrink-0" id="ann-dots">
-        {% for ann in announcements %}
-        <button class="ann-dot {% if forloop.first %}active{% endif %}" onclick="goToSlide({{ forloop.counter0 }})"></button>
-        {% endfor %}
+        {% for ann in announcements %}<button class="ann-dot {% if forloop.first %}active{% endif %}" onclick="goToSlide({{ forloop.counter0 }})"></button>{% endfor %}
       </div>
       {% endif %}
     </div>
@@ -108,31 +67,27 @@
   <div id="ann-banner" style="display:none;">
     <div class="flex items-center" style="max-width:1280px;margin:0 auto;padding:0 16px;">
       <span class="font-mono text-xs flex-shrink-0 mr-3" style="color:var(--gold);letter-spacing:0.1em;">📢 ANNOUNCEMENT</span>
-      <div class="flex-1 relative" style="overflow:hidden;" id="ann-slides-container"></div>
-      <div class="flex items-center gap-1 ml-3 flex-shrink-0" id="ann-dots"></div>
+      <div class="flex-1" id="ann-slides-container"></div>
+      <div class="flex items-center gap-1 ml-3" id="ann-dots"></div>
     </div>
   </div>
   {% endif %}
 
-  <!-- ── Post Announcement (staff only) ────────────────────────────────── -->
-  {% if request.user.is_authenticated %}
-    {% if request.user.is_superuser or request.user.facilitated_sport %}
-    <div id="ann-post-panel">
-      <span class="font-mono text-xs flex-shrink-0" style="color:var(--gold);">+ POST</span>
-      <input type="text" id="ann-input" placeholder='e.g. "Finals will start at 3PM"'
-        style="flex:1;min-width:200px;max-width:520px;padding:5px 10px;font-size:0.85rem;border-radius:6px;"
-        onkeydown="if(event.key==='Enter') postAnnouncement()" maxlength="300" />
-      <button onclick="postAnnouncement()" class="btn-gold" style="padding:5px 16px;font-size:0.82rem;flex-shrink:0;">Post</button>
-      <span id="ann-post-feedback" style="font-size:0.8rem;color:#64ff96;display:none;">✓ Posted</span>
-    </div>
-    {% endif %}
-  {% endif %}
+  {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}
+  <div id="ann-post-panel">
+    <span class="font-mono text-xs flex-shrink-0" style="color:var(--gold);">+ POST</span>
+    <input type="text" id="ann-input" placeholder='e.g. "Finals will start at 3PM"'
+      style="flex:1;min-width:200px;max-width:520px;padding:5px 10px;font-size:0.85rem;border-radius:6px;"
+      onkeydown="if(event.key==='Enter') postAnnouncement()" maxlength="300" />
+    <button onclick="postAnnouncement()" class="btn-gold" style="padding:5px 16px;font-size:0.82rem;flex-shrink:0;">Post</button>
+    <span id="ann-post-feedback" style="font-size:0.8rem;color:#64ff96;display:none;">✓ Posted</span>
+  </div>
+  {% endif %}{% endif %}
 
-  <!-- ── Nav ──────────────────────────────────────────────────────────── -->
   <nav style="border-bottom:1px solid var(--border);background:rgba(10,10,15,0.95);backdrop-filter:blur(10px);" class="sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-      <a href="/" class="flex items-center gap-1 flex-shrink-0">
-        <span class="font-display text-2xl" style="color:var(--gold);">INTRA</span>
+      <a href="/" class="flex items-center  flex-shrink-0">
+        <span class="font-display text-2xl" style="color:var(--gold);">In</span>
         <span class="font-display text-2xl">TRACK</span>
       </a>
       <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1">
@@ -155,131 +110,165 @@
     </div>
   </nav>
 
+  <!-- Auto-logout warning toast -->
+  {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}
+  <div id="session-warning">
+    <p class="font-mono text-xs mb-1" style="color:var(--gold);">⚠ INACTIVITY WARNING</p>
+    <p class="text-sm mb-3">You will be logged out in <strong id="countdown">60</strong> seconds due to inactivity.</p>
+    <button onclick="resetSessionTimer()" class="btn-gold" style="width:100%;text-align:center;padding:6px;">Stay Logged In</button>
+  </div>
+  {% endif %}{% endif %}
+
   <main class="max-w-7xl mx-auto px-4 py-8">
     {% block content %}{% endblock %}
   </main>
 
   <footer style="border-top:1px solid var(--border);color:var(--muted);" class="text-center py-6 text-sm mt-12">
-    IntraTrack &mdash; {{ site_settings.event_name }} {{ site_settings.event_year }}
+    InTrack &mdash; {{ site_settings.event_name }} {{ site_settings.event_year }}
   </footer>
 
-  <!-- ── Announcement JS ───────────────────────────────────────────────── -->
   <script>
-    let annData = {{ announcements|safe }};
-    let currentSlide = 0;
-    let slideTimer = null;
-    const IS_STAFF = {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}true{% else %}false{% endif %}{% else %}false{% endif %};
+  // ── Announcements ──────────────────────────────────────────────────────────
+  let annData = {{ announcements|safe }};
+  let currentSlide = 0, slideTimer = null;
+  const IS_STAFF = {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}true{% else %}false{% endif %}{% else %}false{% endif %};
 
-    function getCookie(name) {
-      let v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
-      return v ? v[2] : null;
+  function getCookie(name) {
+    let v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+    return v ? v[2] : null;
+  }
+
+  function renderBanner() {
+    const banner = document.getElementById('ann-banner');
+    const container = document.getElementById('ann-slides-container');
+    const dotsEl = document.getElementById('ann-dots');
+    if (annData.length === 0) { banner.style.display = 'none'; return; }
+    banner.style.display = 'block';
+    if (container) {
+      container.innerHTML = annData.map((ann, i) => `
+        <div class="ann-slide ${i === currentSlide ? 'active' : ''}" data-ann-id="${ann.id}">
+          <span class="text-sm font-medium" style="color:var(--gold);">${ann.message}</span>
+          ${IS_STAFF ? `<button class="ann-remove-btn" onclick="removeAnnouncement(${ann.id}, this)" title="Remove">×</button>` : ''}
+        </div>`).join('');
     }
-
-    function renderBanner() {
-      const banner = document.getElementById('ann-banner');
-      const container = document.getElementById('ann-slides-container');
-      const dotsEl = document.getElementById('ann-dots');
-
-      if (annData.length === 0) {
-        banner.style.display = 'none';
-        return;
-      }
-
-      banner.style.display = 'block';
-
-      // Only re-render if slides container exists (dynamic mode — no server-rendered slides)
-      if (container) {
-        container.innerHTML = annData.map((ann, i) => `
-          <div class="ann-slide ${i === currentSlide ? 'active' : ''}" data-ann-id="${ann.id}">
-            <span class="text-sm font-medium" style="color:var(--gold);">${ann.message}</span>
-            ${IS_STAFF ? `<button class="ann-remove-btn" onclick="removeAnnouncement(${ann.id}, this)" title="Remove">×</button>` : ''}
-          </div>`).join('');
-      }
-
-      if (dotsEl) {
-        dotsEl.innerHTML = annData.length > 1
-          ? annData.map((_, i) => `<button class="ann-dot ${i === currentSlide ? 'active' : ''}" onclick="goToSlide(${i})"></button>`).join('')
-          : '';
-      }
+    if (dotsEl) {
+      dotsEl.innerHTML = annData.length > 1
+        ? annData.map((_, i) => `<button class="ann-dot ${i === currentSlide ? 'active' : ''}" onclick="goToSlide(${i})"></button>`).join('')
+        : '';
     }
+  }
 
-    function goToSlide(idx) {
-      const slides = document.querySelectorAll('.ann-slide');
-      const dots = document.querySelectorAll('.ann-dot');
-      slides.forEach(s => s.classList.remove('active'));
-      dots.forEach(d => d.classList.remove('active'));
-      currentSlide = (idx + annData.length) % annData.length;
-      if (slides[currentSlide]) slides[currentSlide].classList.add('active');
-      if (dots[currentSlide]) dots[currentSlide].classList.add('active');
-    }
+  function goToSlide(idx) {
+    const slides = document.querySelectorAll('.ann-slide');
+    const dots   = document.querySelectorAll('.ann-dot');
+    slides.forEach(s => s.classList.remove('active'));
+    dots.forEach(d => d.classList.remove('active'));
+    currentSlide = (idx + annData.length) % annData.length;
+    if (slides[currentSlide]) slides[currentSlide].classList.add('active');
+    if (dots[currentSlide])   dots[currentSlide].classList.add('active');
+  }
 
-    function startSlideshow() {
-      if (slideTimer) clearInterval(slideTimer);
-      if (annData.length > 1) {
-        slideTimer = setInterval(() => goToSlide(currentSlide + 1), 4000);
-      }
-    }
+  function startSlideshow() {
+    if (slideTimer) clearInterval(slideTimer);
+    if (annData.length > 1) slideTimer = setInterval(() => goToSlide(currentSlide + 1), 4000);
+  }
 
-    async function postAnnouncement() {
-      const input = document.getElementById('ann-input');
-      const msg = input.value.trim();
-      if (!msg) return;
+  async function postAnnouncement() {
+    const input = document.getElementById('ann-input');
+    const msg   = input.value.trim();
+    if (!msg) return;
+    const res  = await fetch('/announcements/post/', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      body: JSON.stringify({message: msg})
+    });
+    const data = await res.json();
+    if (data.success) {
+      annData.push({id: data.id, message: data.message});
+      input.value = '';
+      currentSlide = annData.length - 1;
+      renderBanner(); startSlideshow();
       const fb = document.getElementById('ann-post-feedback');
-      try {
-        const res = await fetch('/announcements/post/', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
-          body: JSON.stringify({message: msg})
-        });
-        const data = await res.json();
-        if (data.success) {
-          annData.push({id: data.id, message: data.message});
-          input.value = '';
-          currentSlide = annData.length - 1;
-          renderBanner();
-          startSlideshow();
-          fb.style.display = 'inline';
-          setTimeout(() => fb.style.display = 'none', 2500);
-        }
-      } catch(e) {}
+      fb.style.display = 'inline';
+      setTimeout(() => fb.style.display = 'none', 2500);
     }
+  }
 
-    async function removeAnnouncement(annId, btn) {
-      if (!confirm('Remove this announcement?')) return;
-      try {
-        const res = await fetch(`/announcements/remove/${annId}/`, {
-          method: 'POST',
-          headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
-          body: '{}'
-        });
-        const data = await res.json();
-        if (data.success) {
-          annData = annData.filter(a => a.id !== annId);
-          currentSlide = Math.min(currentSlide, Math.max(0, annData.length - 1));
-          renderBanner();
-          startSlideshow();
-        }
-      } catch(e) {}
+  async function removeAnnouncement(annId) {
+    if (!confirm('Remove this announcement?')) return;
+    const res = await fetch(`/announcements/remove/${annId}/`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      body: '{}'
+    });
+    if ((await res.json()).success) {
+      annData = annData.filter(a => a.id !== annId);
+      currentSlide = Math.min(currentSlide, Math.max(0, annData.length - 1));
+      renderBanner(); startSlideshow();
     }
+  }
 
-    // Poll for new announcements every 8 seconds (for viewers)
-    async function pollAnnouncements() {
-      try {
-        const res = await fetch('/api/announcements/');
-        const data = await res.json();
-        // Only update if count changed to avoid resetting slideshow unnecessarily
-        if (data.announcements.length !== annData.length) {
-          annData = data.announcements;
-          currentSlide = 0;
-          renderBanner();
-          startSlideshow();
-        }
-      } catch(e) {}
-    }
+  async function pollAnnouncements() {
+    try {
+      const res  = await fetch('/api/announcements/');
+      const data = await res.json();
+      if (data.announcements.length !== annData.length) {
+        annData = data.announcements;
+        currentSlide = 0;
+        renderBanner(); startSlideshow();
+      }
+    } catch(e) {}
+  }
 
-    // Boot
-    startSlideshow();
-    setInterval(pollAnnouncements, 8000);
+  startSlideshow();
+  setInterval(pollAnnouncements, 8000);
+
+  // ── Auto-logout (staff only, 15 min = 900s, warn at 60s remaining) ─────────
+  {% if request.user.is_authenticated %}{% if request.user.is_superuser or request.user.facilitated_sport %}
+  const TIMEOUT_MS   = 14 * 60 * 1000;  // 14 min — then show warning
+  const COUNTDOWN_S  = 60;               // 60s countdown before logout
+  let   idleTimer    = null;
+  let   countTimer   = null;
+  let   countLeft    = COUNTDOWN_S;
+  const warning      = document.getElementById('session-warning');
+  const countEl      = document.getElementById('countdown');
+
+  function startIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(showWarning, TIMEOUT_MS);
+  }
+
+  function showWarning() {
+    countLeft = COUNTDOWN_S;
+    countEl.textContent = countLeft;
+    warning.style.display = 'block';
+    countTimer = setInterval(() => {
+      countLeft--;
+      countEl.textContent = countLeft;
+      if (countLeft <= 0) {
+        clearInterval(countTimer);
+        window.location.href = '/logout/';
+      }
+    }, 1000);
+  }
+
+  function resetSessionTimer() {
+    clearInterval(countTimer);
+    warning.style.display = 'none';
+    startIdleTimer();
+    // Ping server to keep Django session alive
+    fetch('/api/announcements/').catch(() => {});
+  }
+
+  // Reset on any user activity
+  ['mousemove','keydown','click','scroll','touchstart'].forEach(evt =>
+    document.addEventListener(evt, () => {
+      if (warning.style.display === 'none') startIdleTimer();
+    }, {passive: true})
+  );
+
+  startIdleTimer();
+  {% endif %}{% endif %}
   </script>
 </body>
 </html>

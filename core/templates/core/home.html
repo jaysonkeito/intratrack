@@ -7,13 +7,12 @@
   <h1 class="font-display text-7xl mb-4" style="line-height:1;">
     {{ site_settings.event_name|upper }} <span style="color:var(--gold);">{{ site_settings.event_year }}</span>
   </h1>
-  <!--<p style="color:var(--muted);max-width:480px;margin:0 auto;" class="text-sm">Real-time scores and standings for all 8 intramural sports. Auto-refreshes every 3 seconds.</p>-->
+  <p style="color:var(--muted);max-width:480px;margin:0 auto;" class="text-sm">Real-time scores and standings. Auto-refreshes every 3 seconds.</p>
 </div>
 
 <!-- NOW PLAYING / UP NEXT -->
 <div class="mb-10">
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
     <div>
       <div class="flex items-center gap-2 mb-3">
         <span class="badge-ongoing">Live</span>
@@ -34,10 +33,9 @@
         {% endfor %}
       </div>
     </div>
-
     <div>
       <div class="flex items-center gap-2 mb-3">
-        <span style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:999px;padding:2px 10px;font-size:0.7rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;">Up Next</span>
+        <span style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:999px;padding:2px 10px;font-size:0.7rem;font-weight:600;text-transform:uppercase;">Up Next</span>
         <h2 class="font-display text-2xl">ON DECK</h2>
       </div>
       <div id="up-next-list" class="flex flex-col gap-3">
@@ -45,7 +43,10 @@
         <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-mono" style="color:#64b4ff;">{{ item.sport }} — {{ item.category }}</span>
-            {% if item.match.venue %}<span class="text-xs" style="color:var(--muted);">📍 {{ item.match.venue }}</span>{% endif %}
+            <div class="text-xs" style="color:var(--muted);">
+              {% if item.match.scheduled_time %}🕐 {{ item.match.scheduled_time|date:"M d, g:i A" }}{% endif %}
+              {% if item.match.venue %}📍 {{ item.match.venue }}{% endif %}
+            </div>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium text-sm">{{ item.match.participant_a.display_name }}</span>
@@ -58,12 +59,98 @@
         {% endfor %}
       </div>
     </div>
-
   </div>
 </div>
 
 <hr style="border-color:var(--border);margin-bottom:32px;" />
 
+<!-- MEDAL TALLY -->
+<div class="mb-10">
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div>
+      <p class="font-mono text-xs mb-1" style="color:var(--gold);letter-spacing:0.2em;">OVERALL</p>
+      <h2 class="font-display text-3xl">MEDAL TALLY</h2>
+    </div>
+  </div>
+
+  {% if medal_tally %}
+  <!-- Desktop table -->
+  <div class="card overflow-hidden hidden md:block">
+    <table class="w-full text-sm">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th class="text-left px-5 py-3 font-mono text-xs" style="color:var(--muted);">#</th>
+          <th class="text-left px-5 py-3 font-mono text-xs" style="color:var(--muted);">COLLEGE</th>
+          <th class="text-center px-4 py-3 font-mono text-xs" style="color:#FFD700;">🥇 GOLD</th>
+          <th class="text-center px-4 py-3 font-mono text-xs" style="color:#C0C0C0;">🥈 SILVER</th>
+          <th class="text-center px-4 py-3 font-mono text-xs" style="color:#CD7F32;">🥉 BRONZE</th>
+          <th class="text-center px-4 py-3 font-mono text-xs" style="color:var(--muted);">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody id="medal-tbody">
+        {% for t in medal_tally %}
+        <tr style="border-bottom:1px solid var(--border);" class="{% if forloop.first %}{% endif %}">
+          <td class="px-5 py-4 font-mono font-bold rank-{% if forloop.counter <= 3 %}{{ forloop.counter }}{% endif %}">{{ forloop.counter }}</td>
+          <td class="px-5 py-4">
+            <div class="flex items-center gap-3">
+              {% with profile=college_profiles|dictsort:"code" %}
+              {% endwith %}
+              {% for code, profile in college_profiles.items %}
+                {% if code == t.code and profile.logo %}
+                <img src="{{ profile.logo.url }}" alt="{{ t.code }}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;" />
+                {% endif %}
+              {% endfor %}
+              <div>
+                <p class="font-medium">{{ t.code }}</p>
+                <p class="text-xs" style="color:var(--muted);">{{ t.name }}</p>
+              </div>
+            </div>
+          </td>
+          <td class="text-center px-4 py-4 font-display text-xl" style="color:#FFD700;">{{ t.gold }}</td>
+          <td class="text-center px-4 py-4 font-display text-xl" style="color:#C0C0C0;">{{ t.silver }}</td>
+          <td class="text-center px-4 py-4 font-display text-xl" style="color:#CD7F32;">{{ t.bronze }}</td>
+          <td class="text-center px-4 py-4 font-mono font-bold">{{ t.total }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile cards -->
+  <div class="grid grid-cols-2 gap-3 md:hidden" id="medal-cards">
+    {% for t in medal_tally %}
+    <div class="card p-4 {% if forloop.first %}col-span-2{% endif %}">
+      <div class="flex items-center gap-3 mb-3">
+        {% for code, profile in college_profiles.items %}
+          {% if code == t.code and profile.logo %}
+          <img src="{{ profile.logo.url }}" alt="{{ t.code }}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" />
+          {% endif %}
+        {% endfor %}
+        <div>
+          <p class="font-display text-lg">{{ t.code }}</p>
+          <p class="text-xs" style="color:var(--muted);">Rank #{{ forloop.counter }}</p>
+        </div>
+      </div>
+      <div class="flex gap-3 justify-around">
+        <div class="text-center"><p class="font-display text-2xl" style="color:#FFD700;">{{ t.gold }}</p><p class="text-xs" style="color:var(--muted);">Gold</p></div>
+        <div class="text-center"><p class="font-display text-2xl" style="color:#C0C0C0;">{{ t.silver }}</p><p class="text-xs" style="color:var(--muted);">Silver</p></div>
+        <div class="text-center"><p class="font-display text-2xl" style="color:#CD7F32;">{{ t.bronze }}</p><p class="text-xs" style="color:var(--muted);">Bronze</p></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="card p-8 text-center" style="color:var(--muted);">
+    <p class="font-display text-2xl mb-2">NO MEDALS YET</p>
+    <p class="text-sm">Medal tally will appear once matches are completed.</p>
+  </div>
+  {% endif %}
+</div>
+
+<hr style="border-color:var(--border);margin-bottom:32px;" />
+
+<!-- ALL SPORTS -->
 <h2 class="font-display text-3xl mb-6">ALL SPORTS</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
   {% for sport in sports %}
@@ -74,7 +161,7 @@
       <span class="font-display text-xl">{{ sport.get_name_display }}</span>
     </div>
     {% if sport.facilitator_display_name %}
-      <p class="text-xs mb-2" style="color:var(--muted);">Facilitator: <span style="color:var(--text);">{{ sport.facilitator_display_name }}</span></p>
+    <p class="text-xs mb-2" style="color:var(--muted);">Facilitator: <span style="color:var(--text);">{{ sport.facilitator_display_name }}</span></p>
     {% endif %}
     <p class="text-xs mb-3" style="color:var(--muted);">
       {% for cat in sport.categories.all %}{{ cat.get_name_display }}{% if not forloop.last %} · {% endif %}{% endfor %}
@@ -87,8 +174,9 @@
 <script>
 async function pollLive() {
   try {
-    const res = await fetch('/api/live/');
+    const res  = await fetch('/api/live/');
     const data = await res.json();
+
     const npList = document.getElementById('now-playing-list');
     npList.innerHTML = data.now_playing.length === 0
       ? '<div class="card p-6 text-center" style="color:var(--muted);"><p class="text-sm">No matches currently in progress.</p></div>'
@@ -101,6 +189,7 @@ async function pollLive() {
             <span class="font-medium text-sm flex-1 text-right">${m.team_b}</span>
           </div>
         </div>`).join('');
+
     const unList = document.getElementById('up-next-list');
     unList.innerHTML = data.up_next.length === 0
       ? '<div class="card p-6 text-center" style="color:var(--muted);"><p class="text-sm">No matches queued as next up yet.</p></div>'
@@ -108,7 +197,9 @@ async function pollLive() {
         <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-mono" style="color:#64b4ff;">${m.sport} — ${m.category}</span>
-            ${m.venue ? `<span class="text-xs" style="color:var(--muted);">📍 ${m.venue}</span>` : ''}
+            <span class="text-xs" style="color:var(--muted);">
+              ${m.scheduled_time ? '🕐 '+m.scheduled_time : ''} ${m.venue ? '📍 '+m.venue : ''}
+            </span>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium text-sm">${m.team_a}</span>
