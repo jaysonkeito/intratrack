@@ -439,11 +439,18 @@ async function saveScore(matchId) {
     if (data.success) {
       const el = document.getElementById('saved-' + matchId);
       if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2500); }
-      // Update visible score/badge in the card immediately
+      // Update visible score/badge in the card immediately — no refresh needed
       const card = document.getElementById('match-' + matchId);
       if (card) {
         const badge = card.querySelector('.status-badge');
         if (badge) { badge.className = 'badge-' + data.status + ' status-badge'; badge.textContent = data.status_display; }
+        // FIX: update the live score display text
+        const scoreDisplay = card.querySelector('.score-display');
+        if (scoreDisplay) { scoreDisplay.textContent = data.score_a + ' — ' + data.score_b; }
+        const scoreA = card.querySelector('.score-a');
+        if (scoreA) { scoreA.textContent = data.score_a; }
+        const scoreB = card.querySelector('.score-b');
+        if (scoreB) { scoreB.textContent = data.score_b; }
       }
     }
   } catch(e) {}
@@ -451,6 +458,12 @@ async function saveScore(matchId) {
 
 // ── Set Next Up ───────────────────────────────────────────────────────────────
 async function setNextUp(matchId) {
+  // FIX: block "Set as Next Up" if match is ongoing or finished
+  const st = document.getElementById('st-' + matchId)?.value;
+  if (st === 'ongoing' || st === 'finished') {
+    alert('Cannot set as "Up Next" — this match is already ' + st.charAt(0).toUpperCase() + st.slice(1) + '. Only Scheduled matches can be marked as Up Next.');
+    return;
+  }
   await fetch(`/facilitator/match/${matchId}/next-up/`, {
     method: 'POST',
     headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},

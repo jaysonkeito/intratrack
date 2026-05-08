@@ -554,6 +554,12 @@ def set_next_up(request, match_id):
     match = get_object_or_404(Match, id=match_id)
     if not is_facilitator_for(request.user, match.category.sport):
         return JsonResponse({'error': 'Not authorized'}, status=403)
+    # FIX: only scheduled matches can be marked as Up Next
+    if match.status in ['ongoing', 'finished']:
+        return JsonResponse(
+            {'error': f'Cannot set as Up Next — match is already {match.get_status_display()}.'},
+            status=400
+        )
     data = json.loads(request.body)
     Match.objects.filter(category=match.category, is_next_up=True).update(is_next_up=False)
     if data.get('next_up', True):
