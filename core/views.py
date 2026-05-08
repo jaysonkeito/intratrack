@@ -59,7 +59,13 @@ def _is_facilitator_session_allowed(user, session_key):
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 
 def login_view(request):
-    # Do NOT auto-redirect authenticated users — each session is independent
+    # Redirect already-authenticated users to their dashboard
+    if request.user.is_authenticated:
+        if request.user.is_superuser:
+            return redirect('admin_dashboard')
+        if hasattr(request.user, 'facilitated_sport'):
+            return redirect('facilitator_dashboard')
+        return redirect('home')
     error = None
     if request.method == 'POST':
         user = authenticate(request,
@@ -315,6 +321,8 @@ def category_players_json(request, sport_slug, cat_name):
 @login_required
 def admin_dashboard(request):
     if not is_admin(request.user):
+        if hasattr(request.user, 'facilitated_sport'):
+            return redirect('facilitator_dashboard')
         return redirect('home')
     sports = Sport.objects.prefetch_related('categories', 'category_configs').all()
     colleges = CollegeProfile.objects.all()
@@ -419,6 +427,8 @@ def remove_college(request, code):
 
 @login_required
 def facilitator_dashboard(request):
+    if is_admin(request.user):
+        return redirect('admin_dashboard')
     if not hasattr(request.user, 'facilitated_sport'):
         return redirect('home')
     sport = request.user.facilitated_sport
