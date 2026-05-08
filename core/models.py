@@ -292,3 +292,46 @@ class Player(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.participant})"
+
+
+# ─── Championship Awards ───────────────────────────────────────────────────────
+
+class ChampionshipAward(models.Model):
+    """MVP and Player of the Game declared after a category championship."""
+    AWARD_CHOICES = [
+        ('mvp',  'MVP'),
+        ('potg', 'Player of the Game'),
+    ]
+    category    = models.ForeignKey(Category, on_delete=models.CASCADE,
+                      related_name='awards')
+    award_type  = models.CharField(max_length=10, choices=AWARD_CHOICES)
+    player_name = models.CharField(max_length=100)
+    college     = models.CharField(max_length=10, choices=COLLEGE_CHOICES,
+                      null=True, blank=True)
+    note        = models.CharField(max_length=200, blank=True,
+                      help_text='Optional note, e.g. stats summary')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['award_type']
+        unique_together = ('category', 'award_type')
+
+    def __str__(self):
+        return f"{self.get_award_type_display()} — {self.player_name} ({self.category})"
+
+
+# ─── Facilitator Device Session (max 2 concurrent devices) ────────────────────
+
+class FacilitatorSession(models.Model):
+    """Tracks active session keys for facilitator accounts (max 2 devices)."""
+    user        = models.ForeignKey(User, on_delete=models.CASCADE,
+                      related_name='facilitator_sessions')
+    session_key = models.CharField(max_length=40, unique=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    last_seen   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.user.username} — {self.session_key[:8]}..."

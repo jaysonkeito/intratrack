@@ -31,6 +31,8 @@ urlpatterns = [
     path('facilitator/participant/<int:participant_id>/add-player/', views.add_player, name='add_player'),
     path('facilitator/player/<int:player_id>/remove/', views.remove_player, name='remove_player'),
     path('facilitator/player/<int:player_id>/status/', views.update_player_status, name='update_player_status'),
+    # Championship Awards
+    path('facilitator/category/<int:cat_id>/award/', views.save_award, name='save_award'),
     # Announcements
     path('announcements/post/', views.post_announcement, name='post_announcement'),
     path('announcements/remove/<int:ann_id>/', views.remove_announcement, name='remove_announcement'),

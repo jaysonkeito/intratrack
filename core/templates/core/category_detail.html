@@ -31,7 +31,6 @@
             <option value="{{ code }}" {% if p.college == code %}selected{% endif %}>{{ code }} — {{ name }}</option>
           {% endfor %}
         </select>
-        <!-- Autosave indicator per slot -->
         <span id="slot-saved-{{ p.id }}" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:0.75rem;display:none;color:#64ff96;">✓</span>
       </div>
     </div>
@@ -56,31 +55,38 @@
           <div class="flex items-center justify-between flex-wrap gap-3">
             <div class="flex items-center gap-4 flex-1">
               <span class="font-medium text-sm" style="min-width:55px;">{{ m.participant_a.display_name }}</span>
-              <span class="font-display text-xl" style="color:{% if m.status == 'ongoing' %}var(--gold){% else %}var(--text){% endif %};">
+              <span class="font-display text-xl score-display" style="color:{% if m.status == 'ongoing' %}var(--gold){% else %}var(--text){% endif %};">
                 {{ m.score_a }} — {{ m.score_b }}
               </span>
               <span class="font-medium text-sm" style="min-width:55px;text-align:right;">{{ m.participant_b.display_name }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="badge-{{ m.status }}">{{ m.get_status_display }}</span>
-              {% if m.is_next_up %}<span style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:999px;padding:2px 10px;font-size:0.7rem;font-weight:600;">UP NEXT</span>{% endif %}
+              <span class="badge-{{ m.status }} status-badge">{{ m.get_status_display }}</span>
+              {% if m.is_next_up %}<span class="next-up-badge" style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:999px;padding:2px 10px;font-size:0.7rem;font-weight:600;">UP NEXT</span>{% endif %}
             </div>
           </div>
+          {% if m.scheduled_time or m.venue %}
+          <div class="mt-2 text-xs" style="color:var(--muted);">
+            {% if m.scheduled_time %}🕐 {{ m.scheduled_time|date:"M d, g:i A" }}{% endif %}
+            {% if m.venue %} 📍 {{ m.venue }}{% endif %}
+          </div>
+          {% endif %}
           {% if is_facilitator %}
           <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;" class="flex flex-wrap items-center gap-2">
-            <input type="number" min="0" value="{{ m.score_a }}" id="sa-{{ m.id }}" style="width:62px;" />
+            <input type="number" min="0" value="{{ m.score_a }}" id="sa-{{ m.id }}" style="width:62px;"
+              oninput="autoSaveScore({{ m.id }})" />
             <span style="color:var(--muted);">—</span>
-            <input type="number" min="0" value="{{ m.score_b }}" id="sb-{{ m.id }}" style="width:62px;" />
-            <select id="st-{{ m.id }}" style="width:auto;">
+            <input type="number" min="0" value="{{ m.score_b }}" id="sb-{{ m.id }}" style="width:62px;"
+              oninput="autoSaveScore({{ m.id }})" />
+            <select id="st-{{ m.id }}" style="width:auto;" onchange="autoSaveScore({{ m.id }})">
               <option value="scheduled" {% if m.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
               <option value="ongoing" {% if m.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
               <option value="finished" {% if m.status == 'finished' %}selected{% endif %}>Finished</option>
             </select>
-            <button class="btn-gold" style="padding:6px 14px;font-size:0.82rem;" onclick="saveScore({{ m.id }})">Save</button>
             <button onclick="setNextUp({{ m.id }})" style="background:rgba(100,180,255,0.12);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:8px;padding:6px 12px;font-size:0.82rem;cursor:pointer;">
               {% if m.is_next_up %}✓ Next Up{% else %}Set as Next Up{% endif %}
             </button>
-            <span id="saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Saved</span>
+            <span id="saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Auto-saved</span>
           </div>
           <!-- Date/Time & Venue row -->
           <div class="flex flex-wrap items-center gap-2 mt-2">
@@ -91,8 +97,6 @@
               style="flex:1;min-width:120px;padding:5px 8px;font-size:0.8rem;" />
             <button onclick="saveDetails({{ m.id }})" style="background:rgba(100,255,150,0.1);color:#64ff96;border:1px solid rgba(100,255,150,0.2);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Set Time</button>
             <span id="dt-saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.78rem;">✓</span>
-          </div>
-          
           </div>
           {% endif %}
         </div>
@@ -106,9 +110,7 @@
     <h2 class="font-display text-2xl mb-4">WINNERS BRACKET</h2>
     {% for round_num, round_matches in winners_rounds.items %}
     <div class="mb-5">
-      <p class="font-mono text-xs mb-2" style="color:var(--gold);">
-        ROUND {{ round_num }}
-      </p>
+      <p class="font-mono text-xs mb-2" style="color:var(--gold);">ROUND {{ round_num }}</p>
       <div class="flex flex-col gap-2">
         {% for m in round_matches %}
         <div class="card p-4" id="match-{{ m.id }}">
@@ -116,32 +118,49 @@
             <div class="flex items-center gap-5 flex-1">
               <div class="text-center" style="min-width:60px;">
                 <p class="text-xs mb-1" style="color:var(--muted);">{{ m.participant_a.display_name|default:"TBD" }}</p>
-                <p class="font-display text-3xl" style="color:{% if m.status == 'finished' and m.score_a > m.score_b %}var(--gold){% else %}var(--text){% endif %};">{{ m.score_a }}</p>
+                <p class="font-display text-3xl score-a" style="color:{% if m.status == 'finished' and m.score_a > m.score_b %}var(--gold){% else %}var(--text){% endif %};">{{ m.score_a }}</p>
               </div>
               <span class="font-mono text-xs" style="color:var(--muted);">VS</span>
               <div class="text-center" style="min-width:60px;">
                 <p class="text-xs mb-1" style="color:var(--muted);">{{ m.participant_b.display_name|default:"TBD" }}</p>
-                <p class="font-display text-3xl" style="color:{% if m.status == 'finished' and m.score_b > m.score_a %}var(--gold){% else %}var(--text){% endif %};">{{ m.score_b }}</p>
+                <p class="font-display text-3xl score-b" style="color:{% if m.status == 'finished' and m.score_b > m.score_a %}var(--gold){% else %}var(--text){% endif %};">{{ m.score_b }}</p>
               </div>
             </div>
             <div class="flex flex-col items-end gap-1">
-              <span class="badge-{{ m.status }}">{{ m.get_status_display }}</span>
-              {% if m.is_next_up %}<span style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:999px;padding:2px 10px;font-size:0.7rem;font-weight:600;">UP NEXT</span>{% endif %}
+              <span class="badge-{{ m.status }} status-badge">{{ m.get_status_display }}</span>
+              {% if m.is_next_up %}<span class="next-up-badge" style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:999px;padding:2px 10px;font-size:0.7rem;font-weight:600;">UP NEXT</span>{% endif %}
             </div>
           </div>
+          {% if m.scheduled_time or m.venue %}
+          <div class="mt-2 text-xs" style="color:var(--muted);">
+            {% if m.scheduled_time %}🕐 {{ m.scheduled_time|date:"M d, g:i A" }}{% endif %}
+            {% if m.venue %} 📍 {{ m.venue }}{% endif %}
+          </div>
+          {% endif %}
           {% if is_facilitator %}
           <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;" class="flex flex-wrap items-center gap-2">
-            <input type="number" min="0" value="{{ m.score_a }}" id="sa-{{ m.id }}" style="width:62px;" />
+            <input type="number" min="0" value="{{ m.score_a }}" id="sa-{{ m.id }}" style="width:62px;"
+              oninput="autoSaveScore({{ m.id }})" />
             <span style="color:var(--muted);">—</span>
-            <input type="number" min="0" value="{{ m.score_b }}" id="sb-{{ m.id }}" style="width:62px;" />
-            <select id="st-{{ m.id }}" style="width:auto;">
+            <input type="number" min="0" value="{{ m.score_b }}" id="sb-{{ m.id }}" style="width:62px;"
+              oninput="autoSaveScore({{ m.id }})" />
+            <select id="st-{{ m.id }}" style="width:auto;" onchange="autoSaveScore({{ m.id }})">
               <option value="scheduled" {% if m.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
               <option value="ongoing" {% if m.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
               <option value="finished" {% if m.status == 'finished' %}selected{% endif %}>Finished</option>
             </select>
-            <button class="btn-gold" style="padding:6px 14px;font-size:0.82rem;" onclick="saveScore({{ m.id }})">Save</button>
             <button onclick="setNextUp({{ m.id }})" style="background:rgba(100,180,255,0.12);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:8px;padding:6px 12px;font-size:0.82rem;cursor:pointer;">Set as Next Up</button>
-            <span id="saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Saved</span>
+            <span id="saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Auto-saved</span>
+          </div>
+          <!-- Date/Time & Venue -->
+          <div class="flex flex-wrap items-center gap-2 mt-2">
+            <input type="datetime-local" id="dt-{{ m.id }}"
+              value="{% if m.scheduled_time %}{{ m.scheduled_time|date:'Y-m-d' }}T{{ m.scheduled_time|date:'H:i' }}{% endif %}"
+              style="width:auto;flex:1;min-width:160px;padding:5px 8px;font-size:0.8rem;" />
+            <input type="text" id="venue-{{ m.id }}" value="{{ m.venue }}" placeholder="Venue (optional)"
+              style="flex:1;min-width:120px;padding:5px 8px;font-size:0.8rem;" />
+            <button onclick="saveDetails({{ m.id }})" style="background:rgba(100,255,150,0.1);color:#64ff96;border:1px solid rgba(100,255,150,0.2);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Set Time</button>
+            <span id="dt-saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.78rem;">✓</span>
           </div>
           {% endif %}
         </div>
@@ -161,23 +180,22 @@
           <div class="flex items-center justify-between flex-wrap gap-3">
             <div class="flex items-center gap-4">
               <span class="font-medium text-sm">{{ m.participant_a.display_name|default:"TBD" }}</span>
-              <span class="font-display text-xl">{{ m.score_a }} — {{ m.score_b }}</span>
+              <span class="font-display text-xl score-display">{{ m.score_a }} — {{ m.score_b }}</span>
               <span class="font-medium text-sm">{{ m.participant_b.display_name|default:"TBD" }}</span>
             </div>
-            <span class="badge-{{ m.status }}">{{ m.get_status_display }}</span>
+            <span class="badge-{{ m.status }} status-badge">{{ m.get_status_display }}</span>
           </div>
           {% if is_facilitator %}
           <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;" class="flex flex-wrap gap-2 items-center">
-            <input type="number" min="0" value="{{ m.score_a }}" id="sa-{{ m.id }}" style="width:62px;" />
+            <input type="number" min="0" value="{{ m.score_a }}" id="sa-{{ m.id }}" style="width:62px;" oninput="autoSaveScore({{ m.id }})" />
             <span style="color:var(--muted);">—</span>
-            <input type="number" min="0" value="{{ m.score_b }}" id="sb-{{ m.id }}" style="width:62px;" />
-            <select id="st-{{ m.id }}" style="width:auto;">
+            <input type="number" min="0" value="{{ m.score_b }}" id="sb-{{ m.id }}" style="width:62px;" oninput="autoSaveScore({{ m.id }})" />
+            <select id="st-{{ m.id }}" style="width:auto;" onchange="autoSaveScore({{ m.id }})">
               <option value="scheduled" {% if m.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
               <option value="ongoing" {% if m.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
               <option value="finished" {% if m.status == 'finished' %}selected{% endif %}>Finished</option>
             </select>
-            <button class="btn-gold" style="padding:6px 14px;font-size:0.82rem;" onclick="saveScore({{ m.id }})">Save</button>
-            <span id="saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Saved</span>
+            <span id="saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Auto-saved</span>
           </div>
           {% endif %}
         </div>
@@ -194,28 +212,43 @@
         <div class="flex items-center gap-8">
           <div class="text-center">
             <p class="text-xs mb-2" style="color:var(--muted);">{{ grand_final.participant_a.display_name|default:"TBD" }}</p>
-            <p class="font-display text-5xl" style="color:var(--gold);">{{ grand_final.score_a }}</p>
+            <p class="font-display text-5xl score-a" style="color:var(--gold);">{{ grand_final.score_a }}</p>
           </div>
           <span class="font-mono" style="color:var(--muted);">VS</span>
           <div class="text-center">
             <p class="text-xs mb-2" style="color:var(--muted);">{{ grand_final.participant_b.display_name|default:"TBD" }}</p>
-            <p class="font-display text-5xl" style="color:var(--gold);">{{ grand_final.score_b }}</p>
+            <p class="font-display text-5xl score-b" style="color:var(--gold);">{{ grand_final.score_b }}</p>
           </div>
         </div>
-        <span class="badge-{{ grand_final.status }}">{{ grand_final.get_status_display }}</span>
+        <span class="badge-{{ grand_final.status }} status-badge">{{ grand_final.get_status_display }}</span>
       </div>
+      {% if grand_final.scheduled_time or grand_final.venue %}
+      <div class="mt-3 text-xs" style="color:var(--muted);">
+        {% if grand_final.scheduled_time %}🕐 {{ grand_final.scheduled_time|date:"M d, g:i A" }}{% endif %}
+        {% if grand_final.venue %} 📍 {{ grand_final.venue }}{% endif %}
+      </div>
+      {% endif %}
       {% if is_facilitator %}
       <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;" class="flex gap-2 flex-wrap items-center">
-        <input type="number" min="0" value="{{ grand_final.score_a }}" id="sa-{{ grand_final.id }}" style="width:62px;" />
+        <input type="number" min="0" value="{{ grand_final.score_a }}" id="sa-{{ grand_final.id }}" style="width:62px;" oninput="autoSaveScore({{ grand_final.id }})" />
         <span style="color:var(--muted);">—</span>
-        <input type="number" min="0" value="{{ grand_final.score_b }}" id="sb-{{ grand_final.id }}" style="width:62px;" />
-        <select id="st-{{ grand_final.id }}" style="width:auto;">
+        <input type="number" min="0" value="{{ grand_final.score_b }}" id="sb-{{ grand_final.id }}" style="width:62px;" oninput="autoSaveScore({{ grand_final.id }})" />
+        <select id="st-{{ grand_final.id }}" style="width:auto;" onchange="autoSaveScore({{ grand_final.id }})">
           <option value="scheduled" {% if grand_final.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
           <option value="ongoing" {% if grand_final.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
           <option value="finished" {% if grand_final.status == 'finished' %}selected{% endif %}>Finished</option>
         </select>
-        <button class="btn-gold" style="padding:6px 14px;font-size:0.82rem;" onclick="saveScore({{ grand_final.id }})">Save</button>
-        <span id="saved-{{ grand_final.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Saved</span>
+        <span id="saved-{{ grand_final.id }}" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Auto-saved</span>
+      </div>
+      <!-- Date/Time & Venue -->
+      <div class="flex flex-wrap items-center gap-2 mt-2">
+        <input type="datetime-local" id="dt-{{ grand_final.id }}"
+          value="{% if grand_final.scheduled_time %}{{ grand_final.scheduled_time|date:'Y-m-d' }}T{{ grand_final.scheduled_time|date:'H:i' }}{% endif %}"
+          style="width:auto;flex:1;min-width:160px;padding:5px 8px;font-size:0.8rem;" />
+        <input type="text" id="venue-{{ grand_final.id }}" value="{{ grand_final.venue }}" placeholder="Venue (optional)"
+          style="flex:1;min-width:120px;padding:5px 8px;font-size:0.8rem;" />
+        <button onclick="saveDetails({{ grand_final.id }})" style="background:rgba(100,255,150,0.1);color:#64ff96;border:1px solid rgba(100,255,150,0.2);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Set Time</button>
+        <span id="dt-saved-{{ grand_final.id }}" style="display:none;color:#64ff96;font-size:0.78rem;">✓</span>
       </div>
       {% endif %}
     </div>
@@ -271,9 +304,88 @@
 
 </div>
 
+<!-- ── Championship Awards ─────────────────────────────────────────── -->
+{% if is_championship_done %}
+<div class="mt-10">
+  <div class="flex items-center gap-3 mb-5">
+    <span style="color:var(--gold);font-size:1.4rem;">🏆</span>
+    <h2 class="font-display text-3xl" style="color:var(--gold);">CHAMPIONSHIP AWARDS</h2>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <!-- MVP -->
+    <div class="card p-5" style="border-color:rgba(245,197,24,0.3);">
+      <p class="font-mono text-xs mb-2" style="color:var(--gold);">🥇 MOST VALUABLE PLAYER</p>
+      {% if awards.mvp %}
+      <p class="font-display text-2xl mb-1">{{ awards.mvp.player_name }}</p>
+      {% if awards.mvp.college %}<p class="text-xs mb-1" style="color:var(--muted);">{{ awards.mvp.college }}</p>{% endif %}
+      {% if awards.mvp.note %}<p class="text-xs" style="color:var(--muted);">{{ awards.mvp.note }}</p>{% endif %}
+      {% else %}
+      <p class="text-sm" style="color:var(--muted);">Not yet declared.</p>
+      {% endif %}
+      {% if is_facilitator %}
+      <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;" class="flex flex-col gap-2">
+        <input type="text" id="mvp-name" placeholder="Player name"
+          value="{% if awards.mvp %}{{ awards.mvp.player_name }}{% endif %}"
+          style="padding:6px 10px;font-size:0.85rem;" />
+        <div class="flex gap-2">
+          <select id="mvp-college" style="flex:1;padding:6px 10px;font-size:0.82rem;">
+            <option value="">— College —</option>
+            {% for code, name in college_choices %}
+            <option value="{{ code }}" {% if awards.mvp and awards.mvp.college == code %}selected{% endif %}>{{ code }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" id="mvp-note" placeholder="Note (optional)"
+            value="{% if awards.mvp %}{{ awards.mvp.note }}{% endif %}"
+            style="flex:1;padding:6px 10px;font-size:0.82rem;" />
+        </div>
+        <button onclick="saveAward('mvp')" class="btn-gold" style="padding:6px 14px;font-size:0.82rem;align-self:flex-start;">
+          {% if awards.mvp %}Update{% else %}Declare{% endif %} MVP
+        </button>
+        <span id="award-saved-mvp" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Saved</span>
+      </div>
+      {% endif %}
+    </div>
+    <!-- Player of the Game -->
+    <div class="card p-5" style="border-color:rgba(100,180,255,0.25);">
+      <p class="font-mono text-xs mb-2" style="color:#64b4ff;">⭐ PLAYER OF THE GAME</p>
+      {% if awards.potg %}
+      <p class="font-display text-2xl mb-1">{{ awards.potg.player_name }}</p>
+      {% if awards.potg.college %}<p class="text-xs mb-1" style="color:var(--muted);">{{ awards.potg.college }}</p>{% endif %}
+      {% if awards.potg.note %}<p class="text-xs" style="color:var(--muted);">{{ awards.potg.note }}</p>{% endif %}
+      {% else %}
+      <p class="text-sm" style="color:var(--muted);">Not yet declared.</p>
+      {% endif %}
+      {% if is_facilitator %}
+      <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;" class="flex flex-col gap-2">
+        <input type="text" id="potg-name" placeholder="Player name"
+          value="{% if awards.potg %}{{ awards.potg.player_name }}{% endif %}"
+          style="padding:6px 10px;font-size:0.85rem;" />
+        <div class="flex gap-2">
+          <select id="potg-college" style="flex:1;padding:6px 10px;font-size:0.82rem;">
+            <option value="">— College —</option>
+            {% for code, name in college_choices %}
+            <option value="{{ code }}" {% if awards.potg and awards.potg.college == code %}selected{% endif %}>{{ code }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" id="potg-note" placeholder="Note (optional)"
+            value="{% if awards.potg %}{{ awards.potg.note }}{% endif %}"
+            style="flex:1;padding:6px 10px;font-size:0.82rem;" />
+        </div>
+        <button onclick="saveAward('potg')" style="background:rgba(100,180,255,0.15);color:#64b4ff;border:1px solid rgba(100,180,255,0.3);border-radius:8px;padding:6px 14px;font-size:0.82rem;cursor:pointer;align-self:flex-start;font-weight:600;">
+          {% if awards.potg %}Update{% else %}Declare{% endif %} POTG
+        </button>
+        <span id="award-saved-potg" style="display:none;color:#64ff96;font-size:0.8rem;">✓ Saved</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 const SPORT = "{{ sport.slug }}";
 const CAT = "{{ category.name }}";
+const CAT_ID = {{ category.id }};
 const IS_FAC = {{ is_facilitator|yesno:"true,false" }};
 
 function getCookie(name) {
@@ -285,12 +397,8 @@ function getCookie(name) {
 async function assignCollege(participantId, college, catId, selectEl) {
   const indicator = document.getElementById('slot-saved-' + participantId);
   const statusEl = document.getElementById('save-status');
-
-  // Visual: saving...
   if (indicator) indicator.style.display = 'none';
-  if (statusEl) statusEl.textContent = 'Saving...';
-  if (statusEl) statusEl.style.color = 'var(--muted)';
-
+  if (statusEl) { statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--muted)'; }
   try {
     const res = await fetch(`/facilitator/category/${catId}/assign-college/`, {
       method: 'POST',
@@ -299,15 +407,9 @@ async function assignCollege(participantId, college, catId, selectEl) {
     });
     const data = await res.json();
     if (data.success) {
-      // Update teams panel live — no refresh needed
       const nameEl = document.getElementById('team-name-' + participantId);
       if (nameEl) nameEl.textContent = data.display_name;
-
-      // Show per-slot saved tick
-      if (indicator) {
-        indicator.style.display = 'inline';
-        setTimeout(() => indicator.style.display = 'none', 2000);
-      }
+      if (indicator) { indicator.style.display = 'inline'; setTimeout(() => indicator.style.display = 'none', 2000); }
       if (statusEl) { statusEl.textContent = 'All changes saved ✓'; statusEl.style.color = '#64ff96'; }
       setTimeout(() => { if(statusEl){ statusEl.textContent = 'Changes save automatically.'; statusEl.style.color = 'var(--muted)'; }}, 2500);
     }
@@ -316,20 +418,35 @@ async function assignCollege(participantId, college, catId, selectEl) {
   }
 }
 
-// ── Score saving ─────────────────────────────────────────────────────────────
+// ── Auto Score saving (debounced) ────────────────────────────────────────────
+const _saveTimers = {};
+function autoSaveScore(matchId) {
+  clearTimeout(_saveTimers[matchId]);
+  _saveTimers[matchId] = setTimeout(() => saveScore(matchId), 600);
+}
+
 async function saveScore(matchId) {
   const sa = document.getElementById('sa-' + matchId)?.value;
   const sb = document.getElementById('sb-' + matchId)?.value;
   const st = document.getElementById('st-' + matchId)?.value;
-  const res = await fetch(`/facilitator/match/${matchId}/score/`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
-    body: JSON.stringify({score_a: sa, score_b: sb, status: st})
-  });
-  if (res.ok) {
-    const el = document.getElementById('saved-' + matchId);
-    if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
-  }
+  try {
+    const res = await fetch(`/facilitator/match/${matchId}/score/`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      body: JSON.stringify({score_a: sa, score_b: sb, status: st})
+    });
+    const data = await res.json();
+    if (data.success) {
+      const el = document.getElementById('saved-' + matchId);
+      if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2500); }
+      // Update visible score/badge in the card immediately
+      const card = document.getElementById('match-' + matchId);
+      if (card) {
+        const badge = card.querySelector('.status-badge');
+        if (badge) { badge.className = 'badge-' + data.status + ' status-badge'; badge.textContent = data.status_display; }
+      }
+    }
+  } catch(e) {}
 }
 
 // ── Set Next Up ───────────────────────────────────────────────────────────────
@@ -339,11 +456,45 @@ async function setNextUp(matchId) {
     headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
     body: JSON.stringify({next_up: true})
   });
-  // Brief delay then reload to show updated UP NEXT badges
   setTimeout(() => location.reload(), 400);
 }
 
-// ── AJAX Polling (viewers) ────────────────────────────────────────────────────
+// ── Save datetime/venue ───────────────────────────────────────────────────────
+async function saveDetails(matchId) {
+  const dt    = document.getElementById('dt-' + matchId)?.value;
+  const venue = document.getElementById('venue-' + matchId)?.value;
+  const res   = await fetch(`/facilitator/match/${matchId}/details/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({scheduled_time: dt || null, venue: venue || ''})
+  });
+  if (res.ok) {
+    const el = document.getElementById('dt-saved-' + matchId);
+    if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
+  }
+}
+
+// ── Championship Awards ───────────────────────────────────────────────────────
+async function saveAward(type) {
+  const name    = document.getElementById(type + '-name')?.value.trim();
+  const college = document.getElementById(type + '-college')?.value;
+  const note    = document.getElementById(type + '-note')?.value.trim();
+  if (!name) { alert('Please enter a player name.'); return; }
+  const res = await fetch(`/facilitator/category/${CAT_ID}/award/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({award_type: type, player_name: name, college, note})
+  });
+  const data = await res.json();
+  if (data.success) {
+    const el = document.getElementById('award-saved-' + type);
+    if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2500); }
+    // Reload to refresh displayed award name
+    setTimeout(() => location.reload(), 1000);
+  }
+}
+
+// ── AJAX Polling ──────────────────────────────────────────────────────────────
 async function poll() {
   try {
     const res = await fetch(`/api/${SPORT}/${CAT}/scores/`);
@@ -351,15 +502,27 @@ async function poll() {
     data.matches.forEach(m => {
       const card = document.getElementById('match-' + m.id);
       if (!card) return;
-      // Update scores shown in match cards for viewers
-      const scores = card.querySelectorAll('.font-display');
-      if (!IS_FAC && scores.length >= 2) {
-        scores[0].textContent = m.score_a;
-        scores[1].textContent = m.score_b;
+      // For facilitators: update input values so they stay current
+      if (IS_FAC) {
+        const saInput = card.querySelector('#sa-' + m.id);
+        const sbInput = card.querySelector('#sb-' + m.id);
+        const stSel = card.querySelector('#st-' + m.id);
+        // Only update if user is not actively editing
+        if (saInput && document.activeElement !== saInput) saInput.value = m.score_a;
+        if (sbInput && document.activeElement !== sbInput) sbInput.value = m.score_b;
+        if (stSel && document.activeElement !== stSel) stSel.value = m.status;
+      } else {
+        // Viewer: update displayed scores
+        const displays = card.querySelectorAll('.score-display');
+        if (displays.length > 0) displays[0].textContent = m.score_a + ' — ' + m.score_b;
+        const aScores = card.querySelectorAll('.score-a');
+        const bScores = card.querySelectorAll('.score-b');
+        if (aScores.length > 0) aScores[0].textContent = m.score_a;
+        if (bScores.length > 0) bScores[0].textContent = m.score_b;
       }
       // Update badge
-      const badge = card.querySelector('[class^="badge-"]');
-      if (badge) { badge.className = 'badge-' + m.status; badge.textContent = m.status_display; }
+      const badge = card.querySelector('.status-badge');
+      if (badge) { badge.className = 'badge-' + m.status + ' status-badge'; badge.textContent = m.status_display; }
     });
   } catch(e) {}
 }
@@ -367,10 +530,14 @@ setInterval(poll, 3000);
 </script>
 
 
-
 <!-- ── Player Roster ─────────────────────────────────────────────── -->
 <div class="mt-10">
-  <h2 class="font-display text-3xl mb-6">PLAYER ROSTER</h2>
+  <h2 class="font-display text-3xl mb-2">PLAYER ROSTER</h2>
+  <p class="text-xs mb-5" style="color:var(--muted);">
+    {% if not is_facilitator %}
+    Showing active players.
+    {% endif %}
+  </p>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
     {% for p in participants %}
     <div class="card p-4" id="roster-{{ p.id }}">
@@ -383,6 +550,7 @@ setInterval(poll, 3000);
       </div>
       <div class="flex flex-col gap-1 mb-3" id="players-{{ p.id }}">
         {% for player in p.players.all %}
+        {% if is_facilitator or player.status == 'playing' %}
         <div class="flex items-center justify-between" style="padding:5px 8px;border-radius:6px;background:var(--surface);" id="player-row-{{ player.id }}">
           <div class="flex items-center gap-2">
             {% if player.jersey_number %}<span class="font-mono text-xs" style="color:var(--gold);min-width:20px;">#{{ player.jersey_number }}</span>{% endif %}
@@ -403,6 +571,7 @@ setInterval(poll, 3000);
             {% endif %}
           </div>
         </div>
+        {% endif %}
         {% empty %}
         <p class="text-xs" style="color:var(--muted);" id="no-players-{{ p.id }}">No players added yet.</p>
         {% endfor %}
@@ -430,22 +599,6 @@ function getCookieCat(name) {
   return v ? v[2] : null;
 }
 
-// ── Save datetime/venue ───────────────────────────────────────────────────────
-async function saveDetails(matchId) {
-  const dt    = document.getElementById('dt-' + matchId)?.value;
-  const venue = document.getElementById('venue-' + matchId)?.value;
-  const res   = await fetch(`/facilitator/match/${matchId}/details/`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','X-CSRFToken':getCookieCat('csrftoken')},
-    body: JSON.stringify({scheduled_time: dt || null, venue: venue || ''})
-  });
-  if (res.ok) {
-    const el = document.getElementById('dt-saved-' + matchId);
-    if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
-  }
-}
-
-// ── Players ───────────────────────────────────────────────────────────────────
 async function addPlayer(participantId) {
   const name   = document.getElementById('pname-' + participantId).value.trim();
   const jersey = document.getElementById('pnum-' + participantId).value.trim();

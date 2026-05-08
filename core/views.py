@@ -11,9 +11,12 @@ import json
 from .models import (
     Sport, SportCategoryConfig, Category, Participant, Match,
     SiteSettings, Announcement, CollegeProfile, Player,
+    ChampionshipAward, FacilitatorSession,
     COLLEGE_CHOICES, BRACKET_CHOICES, ALL_POSSIBLE_CATEGORIES
 )
 from .bracket_engine import generate_bracket, advance_winner
+
+MAX_FACILITATOR_DEVICES = 2
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -28,12 +31,35 @@ def is_facilitator_for(user, sport):
         user.facilitated_sport == sport
     )
 
+def _register_facilitator_session(user, session_key):
+    """Register/refresh this session key. Evict oldest if over limit."""
+    obj, created = FacilitatorSession.objects.get_or_create(
+        user=user, session_key=session_key
+    )
+    if not created:
+        # Touch last_seen via save
+        obj.save()
+
+    # Enforce max 2 devices: keep only the 2 most recent
+    sessions = list(FacilitatorSession.objects.filter(user=user).order_by('-last_seen'))
+    if len(sessions) > MAX_FACILITATOR_DEVICES:
+        for old in sessions[MAX_FACILITATOR_DEVICES:]:
+            old.delete()
+
+def _is_facilitator_session_allowed(user, session_key):
+    """Check if this session key is in the allowed list for this user."""
+    allowed_keys = list(
+        FacilitatorSession.objects.filter(user=user)
+        .order_by('-last_seen')
+        .values_list('session_key', flat=True)[:MAX_FACILITATOR_DEVICES]
+    )
+    return session_key in allowed_keys
+
 
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 
 def login_view(request):
-    if request.user.is_authenticated:
-        return redirect('home')
+    # Do NOT auto-redirect authenticated users — each session is independent
     error = None
     if request.method == 'POST':
         user = authenticate(request,
@@ -41,6 +67,9 @@ def login_view(request):
             password=request.POST['password'])
         if user:
             login(request, user)
+            # For facilitators: register this device session
+            if not user.is_superuser and hasattr(user, 'facilitated_sport'):
+                _register_facilitator_session(user, request.session.session_key)
             if user.is_superuser:
                 return redirect('admin_dashboard')
             if hasattr(user, 'facilitated_sport'):
@@ -51,18 +80,18 @@ def login_view(request):
 
 
 def logout_view(request):
+    user = request.user
+    sk = request.session.session_key
     logout(request)
+    # Remove this device's session record
+    if user.is_authenticated:
+        FacilitatorSession.objects.filter(user=user, session_key=sk).delete()
     return redirect('login')
 
 
 # ─── Medal Tally helper ───────────────────────────────────────────────────────
 
 def compute_medal_tally():
-    """
-    Compute gold/silver/bronze medals per college across all finished categories.
-    Gold = winner of the final match (or top standing in RR).
-    Silver = runner-up. Bronze = 3rd place (where applicable).
-    """
     from collections import defaultdict
     tally = defaultdict(lambda: {'gold': 0, 'silver': 0, 'bronze': 0, 'total': 0})
 
@@ -78,7 +107,6 @@ def compute_medal_tally():
                         tally[college]['total'] += 1
 
         elif category.bracket_type in ['single_elimination', 'double_elimination']:
-            # Grand final or highest round finished match
             final = (Match.objects.filter(
                 category=category, status='finished', round_number=200
             ).first() or
@@ -96,7 +124,6 @@ def compute_medal_tally():
                     tally[loser.college]['silver'] += 1
                     tally[loser.college]['total'] += 1
 
-    # Build sorted list
     result = []
     profiles = {p.code: p for p in CollegeProfile.objects.all()}
     for college_code, counts in tally.items():
@@ -139,7 +166,6 @@ def home(request):
 
     college_profiles = {p.code: p for p in CollegeProfile.objects.all()}
     medal_tally = compute_medal_tally()
-    # Attach logo_url directly to each tally item for easy template access
     for item in medal_tally:
         profile = college_profiles.get(item['code'])
         if profile and profile.logo:
@@ -193,6 +219,11 @@ def category_detail(request, sport_slug, cat_name):
 
     college_profiles = {p.code: p for p in CollegeProfile.objects.all()}
 
+    # Championship awards
+    awards = {a.award_type: a for a in category.awards.all()}
+    is_championship_done = (grand_final and grand_final.status == 'finished') or \
+        (not grand_final and any(m.status == 'finished' for m in matches))
+
     return render(request, 'core/category_detail.html', {
         'sport': sport, 'category': category, 'matches': matches,
         'standings': standings,
@@ -203,6 +234,9 @@ def category_detail(request, sport_slug, cat_name):
         'colleges': COLLEGE_CHOICES,
         'participants': category.participants.prefetch_related('players').all(),
         'college_profiles': college_profiles,
+        'awards': awards,
+        'is_championship_done': is_championship_done,
+        'college_choices': COLLEGE_CHOICES,
     })
 
 
@@ -239,13 +273,18 @@ def home_live_json(request):
                 now_playing.append({
                     'sport': sport.name, 'category': cat.get_name_display(),
                     'sport_slug': sport.slug, 'cat_name': cat.name,
+                    'match_id': m.id,
                     'team_a': m.participant_a.display_name() if m.participant_a else 'TBD',
                     'team_b': m.participant_b.display_name() if m.participant_b else 'TBD',
                     'score_a': m.score_a, 'score_b': m.score_b,
+                    'scheduled_time': m.scheduled_time.strftime('%b %d, %I:%M %p') if m.scheduled_time else '',
+                    'venue': m.venue,
                 })
             for m in cat.matches.filter(is_next_up=True, status='scheduled'):
                 up_next.append({
                     'sport': sport.name, 'category': cat.get_name_display(),
+                    'sport_slug': sport.slug, 'cat_name': cat.name,
+                    'match_id': m.id,
                     'team_a': m.participant_a.display_name() if m.participant_a else 'TBD',
                     'team_b': m.participant_b.display_name() if m.participant_b else 'TBD',
                     'venue': m.venue,
@@ -434,7 +473,13 @@ def update_match_score(request, match_id):
         advance_winner(match)
         match.is_next_up = False
         match.save()
-    return JsonResponse({'success': True})
+    return JsonResponse({
+        'success': True,
+        'score_a': match.score_a,
+        'score_b': match.score_b,
+        'status': match.status,
+        'status_display': match.get_status_display(),
+    })
 
 
 @login_required
@@ -472,6 +517,34 @@ def set_next_up(request, match_id):
         match.is_next_up = True
         match.save()
     return JsonResponse({'success': True})
+
+
+# ─── Championship Awards ──────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def save_award(request, cat_id):
+    category = get_object_or_404(Category, id=cat_id)
+    if not is_facilitator_for(request.user, category.sport):
+        return JsonResponse({'error': 'Not authorized'}, status=403)
+    data = json.loads(request.body)
+    award_type  = data.get('award_type')
+    player_name = data.get('player_name', '').strip()
+    college     = data.get('college', '') or None
+    note        = data.get('note', '').strip()
+    if award_type not in ('mvp', 'potg'):
+        return JsonResponse({'error': 'Invalid award type'}, status=400)
+    award, _ = ChampionshipAward.objects.update_or_create(
+        category=category, award_type=award_type,
+        defaults={'player_name': player_name, 'college': college, 'note': note}
+    )
+    return JsonResponse({
+        'success': True,
+        'award_type': award.award_type,
+        'player_name': award.player_name,
+        'college': award.college or '',
+        'note': award.note,
+    })
 
 
 # ─── Players ──────────────────────────────────────────────────────────────────

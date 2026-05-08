@@ -20,23 +20,14 @@
       </div>
       <div id="now-playing-list" class="flex flex-col gap-3">
         {% for item in now_playing %}
-        <a href="/sport/{{ item.sport.slug }}/{{ item.category.name }}/"
-           class="card p-4 block"
-           style="border-color:rgba(245,197,24,0.3);text-decoration:none;cursor:pointer;transition:transform 0.15s;"
-           onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-mono" style="color:var(--gold);">{{ item.sport }} — {{ item.category }}</span>
-            <div class="text-xs" style="color:var(--muted);">
-              {% if item.match.scheduled_time %}🕐 {{ item.match.scheduled_time|date:"M d, g:i A" }}{% endif %}
-              {% if item.match.venue %} 📍 {{ item.match.venue }}{% endif %}
-            </div>
-          </div>
+        <div class="card p-4" style="border-color:rgba(245,197,24,0.3);">
+          <div class="mb-2"><span class="text-xs font-mono" style="color:var(--gold);">{{ item.sport }} — {{ item.category }}</span></div>
           <div class="flex items-center justify-between">
             <span class="font-medium text-sm flex-1">{{ item.match.participant_a.display_name }}</span>
             <span class="font-display text-2xl mx-4" style="color:var(--gold);">{{ item.match.score_a }} — {{ item.match.score_b }}</span>
             <span class="font-medium text-sm flex-1 text-right">{{ item.match.participant_b.display_name }}</span>
           </div>
-        </a>
+        </div>
         {% empty %}
         <div class="card p-6 text-center" style="color:var(--muted);"><p class="text-sm">No matches currently in progress.</p></div>
         {% endfor %}
@@ -49,15 +40,12 @@
       </div>
       <div id="up-next-list" class="flex flex-col gap-3">
         {% for item in up_next %}
-        <a href="/sport/{{ item.sport.slug }}/{{ item.category.name }}/"
-           class="card p-4 block"
-           style="text-decoration:none;cursor:pointer;transition:border-color 0.2s,transform 0.15s;"
-           onmouseover="this.style.borderColor='#64b4ff';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
+        <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-mono" style="color:#64b4ff;">{{ item.sport }} — {{ item.category }}</span>
             <div class="text-xs" style="color:var(--muted);">
               {% if item.match.scheduled_time %}🕐 {{ item.match.scheduled_time|date:"M d, g:i A" }}{% endif %}
-              {% if item.match.venue %} 📍 {{ item.match.venue }}{% endif %}
+              {% if item.match.venue %}📍 {{ item.match.venue }}{% endif %}
             </div>
           </div>
           <div class="flex items-center justify-between">
@@ -65,7 +53,7 @@
             <span class="font-mono text-sm mx-4" style="color:var(--muted);">VS</span>
             <span class="font-medium text-sm">{{ item.match.participant_b.display_name }}</span>
           </div>
-        </a>
+        </div>
         {% empty %}
         <div class="card p-6 text-center" style="color:var(--muted);"><p class="text-sm">No matches queued as next up yet.</p></div>
         {% endfor %}
@@ -86,6 +74,7 @@
   </div>
 
   {% if medal_tally %}
+  <!-- Desktop table -->
   <div class="card overflow-hidden hidden md:block">
     <table class="w-full text-sm">
       <thead>
@@ -100,12 +89,17 @@
       </thead>
       <tbody id="medal-tbody">
         {% for t in medal_tally %}
-        <tr style="border-bottom:1px solid var(--border);">
+        <tr style="border-bottom:1px solid var(--border);" class="{% if forloop.first %}{% endif %}">
           <td class="px-5 py-4 font-mono font-bold rank-{% if forloop.counter <= 3 %}{{ forloop.counter }}{% endif %}">{{ forloop.counter }}</td>
           <td class="px-5 py-4">
             <div class="flex items-center gap-3">
-              {% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.code }}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;" />{% endif %}
-              <div><p class="font-medium">{{ t.code }}</p><p class="text-xs" style="color:var(--muted);">{{ t.name }}</p></div>
+              {% if t.logo_url %}
+                <img src="{{ t.logo_url }}" alt="{{ t.code }}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;" />
+              {% endif %}
+              <div>
+                <p class="font-medium">{{ t.code }}</p>
+                <p class="text-xs" style="color:var(--muted);">{{ t.name }}</p>
+              </div>
             </div>
           </td>
           <td class="text-center px-4 py-4 font-display text-xl" style="color:#FFD700;">{{ t.gold }}</td>
@@ -117,12 +111,19 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Mobile cards -->
   <div class="grid grid-cols-2 gap-3 md:hidden" id="medal-cards">
     {% for t in medal_tally %}
     <div class="card p-4 {% if forloop.first %}col-span-2{% endif %}">
       <div class="flex items-center gap-3 mb-3">
-        {% if t.logo_url %}<img src="{{ t.logo_url }}" alt="{{ t.code }}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" />{% endif %}
-        <div><p class="font-display text-lg">{{ t.code }}</p><p class="text-xs" style="color:var(--muted);">Rank #{{ forloop.counter }}</p></div>
+        {% if t.logo_url %}
+          <img src="{{ t.logo_url }}" alt="{{ t.code }}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" />
+        {% endif %}
+        <div>
+          <p class="font-display text-lg">{{ t.code }}</p>
+          <p class="text-xs" style="color:var(--muted);">Rank #{{ forloop.counter }}</p>
+        </div>
       </div>
       <div class="flex gap-3 justify-around">
         <div class="text-center"><p class="font-display text-2xl" style="color:#FFD700;">{{ t.gold }}</p><p class="text-xs" style="color:var(--muted);">Gold</p></div>
@@ -132,6 +133,7 @@
     </div>
     {% endfor %}
   </div>
+
   {% else %}
   <div class="card p-8 text-center" style="color:var(--muted);">
     <p class="font-display text-2xl mb-2">NO MEDALS YET</p>
@@ -143,24 +145,8 @@
 <hr style="border-color:var(--border);margin-bottom:32px;" />
 
 <!-- ALL SPORTS -->
-<h2 class="font-display text-3xl mb-5">ALL SPORTS</h2>
-
-<!-- Mobile: dropdown -->
-<div class="block md:hidden mb-4">
-  <div class="relative">
-    <select onchange="if(this.value) window.location=this.value;"
-      style="width:100%;font-size:1rem;padding:11px 40px 11px 14px;border-radius:10px;background:var(--card);border:1px solid var(--gold);color:var(--text);appearance:none;-webkit-appearance:none;cursor:pointer;">
-      <option value="">🏅 Sports — tap to browse</option>
-      {% for sport in sports %}
-      <option value="/sport/{{ sport.slug }}/">{{ sport.get_name_display }}</option>
-      {% endfor %}
-    </select>
-    <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--gold);">▼</span>
-  </div>
-</div>
-
-<!-- Desktop: grid -->
-<div class="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+<h2 class="font-display text-3xl mb-6">ALL SPORTS</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
   {% for sport in sports %}
   <a href="/sport/{{ sport.slug }}/" class="card p-5 block" style="text-decoration:none;transition:border-color 0.2s,transform 0.15s;"
     onmouseover="this.style.borderColor='var(--gold)';this.style.transform='translateY(-2px)'"
@@ -189,29 +175,20 @@ async function pollLive() {
     npList.innerHTML = data.now_playing.length === 0
       ? '<div class="card p-6 text-center" style="color:var(--muted);"><p class="text-sm">No matches currently in progress.</p></div>'
       : data.now_playing.map(m => `
-        <a href="/sport/${m.sport_slug}/${m.cat_name}/" class="card p-4 block"
-           style="border-color:rgba(245,197,24,0.3);text-decoration:none;cursor:pointer;transition:transform 0.15s;"
-           onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-mono" style="color:var(--gold);">${m.sport} — ${m.category}</span>
-            <span class="text-xs" style="color:var(--muted);">
-              ${m.scheduled_time ? '🕐 '+m.scheduled_time : ''} ${m.venue ? '📍 '+m.venue : ''}
-            </span>
-          </div>
+        <div class="card p-4" style="border-color:rgba(245,197,24,0.3);">
+          <div class="mb-2"><span class="text-xs font-mono" style="color:var(--gold);">${m.sport} — ${m.category}</span></div>
           <div class="flex items-center justify-between">
             <span class="font-medium text-sm flex-1">${m.team_a}</span>
             <span class="font-display text-2xl mx-4" style="color:var(--gold);">${m.score_a} — ${m.score_b}</span>
             <span class="font-medium text-sm flex-1 text-right">${m.team_b}</span>
           </div>
-        </a>`).join('');
+        </div>`).join('');
 
     const unList = document.getElementById('up-next-list');
     unList.innerHTML = data.up_next.length === 0
       ? '<div class="card p-6 text-center" style="color:var(--muted);"><p class="text-sm">No matches queued as next up yet.</p></div>'
       : data.up_next.map(m => `
-        <a href="/sport/${m.sport_slug}/${m.cat_name}/" class="card p-4 block"
-           style="text-decoration:none;cursor:pointer;transition:border-color 0.2s,transform 0.15s;"
-           onmouseover="this.style.borderColor='#64b4ff';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
+        <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-mono" style="color:#64b4ff;">${m.sport} — ${m.category}</span>
             <span class="text-xs" style="color:var(--muted);">
@@ -223,7 +200,7 @@ async function pollLive() {
             <span class="font-mono text-sm mx-4" style="color:var(--muted);">VS</span>
             <span class="font-medium text-sm">${m.team_b}</span>
           </div>
-        </a>`).join('');
+        </div>`).join('');
   } catch(e) {}
 }
 setInterval(pollLive, 3000);
