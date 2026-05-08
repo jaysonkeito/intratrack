@@ -95,7 +95,7 @@
               style="width:auto;flex:1;min-width:160px;padding:5px 8px;font-size:0.8rem;" />
             <input type="text" id="venue-{{ m.id }}" value="{{ m.venue }}" placeholder="Venue (optional)"
               style="flex:1;min-width:120px;padding:5px 8px;font-size:0.8rem;" />
-            <button onclick="saveDetails({{ m.id }})" style="background:rgba(100,255,150,0.1);color:#64ff96;border:1px solid rgba(100,255,150,0.2);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Set Time</button>
+            <button onclick="saveDetails({{ m.id }})" style="background:rgba(100,255,150,0.1);color:#64ff96;border:1px solid rgba(100,255,150,0.2);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;">Set</button>
             <span id="dt-saved-{{ m.id }}" style="display:none;color:#64ff96;font-size:0.78rem;">✓</span>
           </div>
           {% endif %}
