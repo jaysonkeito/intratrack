@@ -5,7 +5,7 @@
 <div class="mb-8">
   <p class="font-mono text-xs mb-1" style="color:var(--gold);letter-spacing:0.2em;">HEAD COMMITTEE</p>
   <h1 class="font-display text-5xl">ADMIN DASHBOARD</h1>
-  <p class="text-sm mt-1" style="color:var(--muted);">Manage sports, facilitators, and categories.</p>
+  <p class="text-sm mt-1" style="color:var(--muted);">Manage sports, facilitators, and colleges.</p>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -64,21 +64,102 @@
     </form>
   </div>
 
-  <!-- Quick Links -->
+  <!-- Account Info (replaces Django Admin link) -->
   <div class="card p-6">
-    <h2 class="font-display text-xl mb-4">🔗 QUICK LINKS</h2>
-    <div class="flex flex-col gap-3">
-      <a href="/admin/" class="btn-gold" style="display:block;text-align:center;">Django Admin Panel</a>
-      <p class="text-xs" style="color:var(--muted);">Use Django Admin to: edit sport details, manage all accounts, view all matches, adjust site year/name.</p>
-      <hr style="border-color:var(--border);" />
-      <p class="text-xs font-mono" style="color:var(--gold);">YOUR ACCOUNT</p>
-      <p class="text-sm">Logged in as <strong>{{ request.user.username }}</strong></p>
-    </div>
+    <h2 class="font-display text-xl mb-4">👤 YOUR ACCOUNT</h2>
+    <p class="text-sm mb-1" style="color:var(--muted);">Logged in as</p>
+    <p class="font-display text-2xl mb-4" style="color:var(--gold);">{{ request.user.username }}</p>
+    <hr style="border-color:var(--border);margin-bottom:16px;" />
+    <p class="text-xs" style="color:var(--muted);">
+      You have full admin access. Use the panels below to manage sports, colleges, and facilitators.
+    </p>
   </div>
 
 </div>
 
-<!-- Sports & Facilitators Table -->
+<!-- ─── College Management ──────────────────────────────────────────── -->
+<h2 class="font-display text-2xl mb-4">🏛 COLLEGES</h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+
+  <!-- Add / Update College Form -->
+  <div class="card p-6">
+    <h3 class="font-display text-lg mb-1" style="color:var(--gold);">ADD / UPDATE COLLEGE</h3>
+    <p class="text-xs mb-4" style="color:var(--muted);">Using an existing code will update that college's info.</p>
+    <form method="POST" action="/admin-panel/college/create/" enctype="multipart/form-data" class="flex flex-col gap-3">
+      {% csrf_token %}
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs mb-1 block" style="color:var(--muted);">CODE *</label>
+          <input type="text" name="code" placeholder="e.g. CAF" maxlength="10" required
+            style="text-transform:uppercase;" />
+          <p class="text-xs mt-1" style="color:var(--muted);">Short acronym, all caps</p>
+        </div>
+        <div>
+          <label class="text-xs mb-1 block" style="color:var(--muted);">SHORT NAME</label>
+          <input type="text" name="short_name" placeholder="e.g. Agriculture" maxlength="30" />
+          <p class="text-xs mt-1" style="color:var(--muted);">Shown under logo</p>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs mb-1 block" style="color:var(--muted);">FULL NAME *</label>
+        <input type="text" name="full_name" placeholder="e.g. College of Agriculture and Forestry" required />
+      </div>
+      <div>
+        <label class="text-xs mb-1 block" style="color:var(--muted);">LOGO (PNG/SVG recommended)</label>
+        <input type="file" name="logo" accept="image/*"
+          style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-size:0.82rem;width:100%;" />
+      </div>
+      <button type="submit" class="btn-gold">Save College</button>
+    </form>
+  </div>
+
+  <!-- Existing Colleges List -->
+  <div class="card p-6">
+    <h3 class="font-display text-lg mb-4" style="color:var(--gold);">CURRENT COLLEGES</h3>
+    {% if colleges %}
+    <div class="flex flex-col gap-2">
+      {% for college in colleges %}
+      <div class="flex items-center justify-between gap-3"
+        style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+        <div class="flex items-center gap-3">
+          {% if college.logo %}
+          <img src="{{ college.logo.url }}" alt="{{ college.code }}"
+            style="width:38px;height:38px;object-fit:contain;border-radius:6px;background:#fff;padding:2px;" />
+          {% else %}
+          <div style="width:38px;height:38px;border-radius:6px;background:var(--border);display:flex;align-items:center;justify-content:center;">
+            <span class="font-mono text-xs" style="color:var(--muted);">{{ college.code|slice:":3" }}</span>
+          </div>
+          {% endif %}
+          <div>
+            <p class="font-mono text-sm font-bold" style="color:var(--gold);">{{ college.code }}</p>
+            <p class="text-xs" style="color:var(--muted);">{{ college.full_name|default:college.code }}</p>
+            {% if college.short_name %}
+            <p class="text-xs" style="color:var(--border);">{{ college.short_name }}</p>
+            {% endif %}
+          </div>
+        </div>
+        <form method="POST" action="/admin-panel/college/remove/{{ college.code }}/"
+          onsubmit="return confirm('Remove {{ college.code }}? Existing match assignments will remain but the logo and name will be gone.')">
+          {% csrf_token %}
+          <button type="submit"
+            style="background:rgba(255,100,100,0.1);color:#ff6464;border:1px solid rgba(255,100,100,0.3);border-radius:8px;padding:4px 12px;font-size:0.78rem;cursor:pointer;">
+            Remove
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="color:var(--muted);text-align:center;padding:24px 0;">
+      <p class="font-display text-lg mb-1">NO COLLEGES YET</p>
+      <p class="text-sm">Add colleges using the form on the left.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ─── Sports & Facilitators ──────────────────────────────────────── -->
 <h2 class="font-display text-2xl mb-4">ALL SPORTS</h2>
 <div class="flex flex-col gap-3">
   {% for sport in sports %}
@@ -89,7 +170,6 @@
           <p class="font-display text-xl">{{ sport.name }}</p>
           <span class="font-mono text-xs" style="color:var(--muted);">slug: {{ sport.slug }}</span>
         </div>
-        <!-- Categories -->
         <div class="flex gap-1 flex-wrap mb-2">
           {% for cat in sport.categories.all %}
           <span class="badge-scheduled">{{ cat.get_name_display }}</span>
@@ -97,7 +177,6 @@
           <span class="text-xs" style="color:var(--muted);">No categories configured</span>
           {% endfor %}
         </div>
-        <!-- Facilitator -->
         {% if sport.facilitator %}
           <p class="text-sm" style="color:#64ff96;">
             ⚡ <strong>{{ sport.facilitator_display_name|default:sport.facilitator.username }}</strong>

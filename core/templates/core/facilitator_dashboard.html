@@ -19,6 +19,7 @@
     <h2 class="font-display text-2xl mb-4">{{ cat.get_name_display|upper }}</h2>
 
     {% if cat.bracket_generated %}
+      <!-- Bracket is active -->
       <div class="flex gap-2 mb-4 flex-wrap">
         <span class="badge-scheduled">{{ cat.get_bracket_type_display }}</span>
         <span class="badge-scheduled">{{ cat.team_count }} Teams</span>
@@ -26,24 +27,36 @@
       </div>
       <a href="/sport/{{ sport.slug }}/{{ cat.name }}/" class="btn-gold" style="display:block;text-align:center;">Manage Bracket →</a>
 
-      <!-- Reset bracket — always available, no confirmation gate needed since we confirm via onsubmit -->
+      <!-- Change bracket type / team count -->
       <div class="mt-4" style="border-top:1px solid var(--border);padding-top:14px;">
-        <p class="text-xs mb-3" style="color:var(--muted);">Change bracket type or team count:</p>
+        <p class="text-xs mb-1 font-mono" style="color:var(--gold);">CHANGE BRACKET</p>
+        <p class="text-xs mb-3" style="color:var(--muted);">Switching bracket type will reset all matches for this category.</p>
         <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="flex flex-col gap-2"
-          onsubmit="return confirm('This will reset all matches for {{ cat.get_name_display }}. Continue?')">
+          onsubmit="return confirm('⚠ This will delete all matches for {{ cat.get_name_display }} and rebuild the bracket. Continue?')">
           {% csrf_token %}
-          <select name="bracket_type">
-            {% for code, label in bracket_choices %}
-            <option value="{{ code }}" {% if cat.bracket_type == code %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-          <input type="number" name="team_count" min="2" max="16" value="{{ cat.team_count }}" />
+          <div>
+            <label class="text-xs mb-1 block" style="color:var(--muted);">BRACKET TYPE</label>
+            <select name="bracket_type">
+              {% for code, label in bracket_choices %}
+              <option value="{{ code }}" {% if cat.bracket_type == code %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs mb-1 block" style="color:var(--muted);">NUMBER OF TEAMS</label>
+            <input type="number" name="team_count" min="2" max="16" value="{{ cat.team_count }}" />
+          </div>
           <button type="submit" style="background:rgba(255,160,60,0.12);color:#ffaa3c;border:1px solid rgba(255,160,60,0.3);border-radius:8px;padding:7px;font-size:0.82rem;cursor:pointer;">⚠ Reset & Regenerate</button>
         </form>
       </div>
 
     {% else %}
-      <p class="text-sm mb-4" style="color:var(--muted);">Set up this category's bracket to get started.</p>
+      <!-- No bracket yet — first-time setup -->
+      <div style="background:rgba(255,200,0,0.06);border:1px solid rgba(255,200,0,0.2);border-radius:10px;padding:12px;margin-bottom:16px;">
+        <p class="font-mono text-xs mb-1" style="color:var(--gold);">SETUP REQUIRED</p>
+        <p class="text-sm" style="color:var(--muted);">Choose a bracket format and the number of teams to generate this category's bracket.</p>
+      </div>
+
       <form method="POST" action="/facilitator/bracket/{{ cat.id }}/setup/" class="flex flex-col gap-3">
         {% csrf_token %}
         <div>
@@ -53,11 +66,14 @@
             <option value="{{ code }}">{{ label }}</option>
             {% endfor %}
           </select>
+          <p class="text-xs mt-1" style="color:var(--muted);">
+            Single Elim: 1 loss = out · Double Elim: 2 losses = out · Round Robin: all play all
+          </p>
         </div>
         <div>
           <label class="text-xs mb-1 block" style="color:var(--muted);">NUMBER OF TEAMS</label>
           <input type="number" name="team_count" min="2" max="16" placeholder="e.g. 6" required />
-          <p class="text-xs mt-1" style="color:var(--muted);">Teams labeled A, B, C… Assign colleges after.</p>
+          <p class="text-xs mt-1" style="color:var(--muted);">Teams will be labeled A, B, C… Assign colleges after generating.</p>
         </div>
         <button type="submit" class="btn-gold">Generate Bracket →</button>
       </form>

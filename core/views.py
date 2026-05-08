@@ -12,7 +12,7 @@ from .models import (
     Sport, SportCategoryConfig, Category, Participant, Match,
     SiteSettings, Announcement, CollegeProfile, Player,
     ChampionshipAward, FacilitatorSession,
-    COLLEGE_CHOICES, BRACKET_CHOICES, ALL_POSSIBLE_CATEGORIES
+    COLLEGE_CHOICES, BRACKET_CHOICES, ALL_POSSIBLE_CATEGORIES, get_college_choices
 )
 from .bracket_engine import generate_bracket, advance_winner
 
@@ -231,12 +231,12 @@ def category_detail(request, sport_slug, cat_name):
         'losers_rounds': dict(sorted(losers_rounds.items())),
         'grand_final': grand_final,
         'is_facilitator': fac,
-        'colleges': COLLEGE_CHOICES,
+        'colleges': get_college_choices(),
         'participants': category.participants.prefetch_related('players').all(),
         'college_profiles': college_profiles,
         'awards': awards,
         'is_championship_done': is_championship_done,
-        'college_choices': COLLEGE_CHOICES,
+        'college_choices': get_college_choices(),
     })
 
 
@@ -317,9 +317,11 @@ def admin_dashboard(request):
     if not is_admin(request.user):
         return redirect('home')
     sports = Sport.objects.prefetch_related('categories', 'category_configs').all()
+    colleges = CollegeProfile.objects.all()
     return render(request, 'core/admin_dashboard.html', {
         'sports': sports,
         'all_categories': ALL_POSSIBLE_CATEGORIES,
+        'colleges': colleges,
     })
 
 
@@ -379,6 +381,37 @@ def remove_facilitator(request, sport_slug):
     sport.facilitator = None
     sport.facilitator_display_name = ''
     sport.save()
+    return redirect('admin_dashboard')
+
+
+@login_required
+@require_POST
+def create_college(request):
+    """Admin adds a new college."""
+    if not is_admin(request.user):
+        return redirect('home')
+    code      = request.POST.get('code', '').strip().upper()
+    full_name = request.POST.get('full_name', '').strip()
+    short_name = request.POST.get('short_name', '').strip()
+    logo      = request.FILES.get('logo')
+    if not code or not full_name:
+        return redirect('admin_dashboard')
+    profile, created = CollegeProfile.objects.get_or_create(code=code)
+    profile.full_name  = full_name
+    profile.short_name = short_name
+    if logo:
+        profile.logo = logo
+    profile.save()
+    return redirect('admin_dashboard')
+
+
+@login_required
+@require_POST
+def remove_college(request, code):
+    """Admin removes a college profile."""
+    if not is_admin(request.user):
+        return redirect('home')
+    CollegeProfile.objects.filter(code=code).delete()
     return redirect('admin_dashboard')
 
 

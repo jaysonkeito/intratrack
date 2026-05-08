@@ -18,6 +18,8 @@ urlpatterns = [
     path('admin-panel/sport/create/', views.create_sport, name='create_sport'),
     path('admin-panel/facilitator/create/', views.create_facilitator, name='create_facilitator'),
     path('admin-panel/facilitator/remove/<slug:sport_slug>/', views.remove_facilitator, name='remove_facilitator'),
+    path('admin-panel/college/create/', views.create_college, name='create_college'),
+    path('admin-panel/college/remove/<str:code>/', views.remove_college, name='remove_college'),
     # Facilitator
     path('facilitator/', views.facilitator_dashboard, name='facilitator_dashboard'),
     path('facilitator/bracket/<int:cat_id>/setup/', views.setup_bracket, name='setup_bracket'),

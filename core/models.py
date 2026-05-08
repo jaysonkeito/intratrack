@@ -15,6 +15,14 @@ CATEGORY_CHOICES = [
     ('mixed', 'Mixed'),
 ]
 
+def get_college_choices():
+    """Dynamically build college choices from CollegeProfile table."""
+    try:
+        return [(p.code, p.full_name or p.code) for p in CollegeProfile.objects.order_by('code')]
+    except Exception:
+        return []
+
+# Keep as a fallback list for migrations/early bootstrap
 COLLEGE_CHOICES = [
     ('CAF',  'College of Agriculture and Forestry'),
     ('CAS',  'College of Arts and Sciences'),
@@ -241,19 +249,13 @@ class Announcement(models.Model):
 
 class CollegeProfile(models.Model):
     code        = models.CharField(max_length=10, unique=True,
-                      choices=[
-                          ('CAF',  'College of Agriculture and Forestry'),
-                          ('CAS',  'College of Arts and Sciences'),
-                          ('CBA',  'College of Business Administration'),
-                          ('CIT',  'College of Industrial Technology'),
-                          ('CTED', 'College of Teacher Education'),
-                          ('CCJE', 'College of Criminal Justice Education'),
-                      ])
+                      help_text="Short code, e.g. CAF, CAS, CBA")
     logo        = models.ImageField(upload_to='college_logos/', null=True, blank=True,
                       help_text="Upload college logo/icon (PNG or SVG recommended)")
-    full_name   = models.CharField(max_length=150, blank=True)
+    full_name   = models.CharField(max_length=150, blank=True,
+                      help_text="Full college name, e.g. College of Agriculture and Forestry")
     short_name  = models.CharField(max_length=30, blank=True,
-                      help_text="e.g. 'Agriculture' shown under logo")
+                      help_text="Short name shown under logo, e.g. Agriculture")
 
     class Meta:
         ordering = ['code']
@@ -264,14 +266,7 @@ class CollegeProfile(models.Model):
         return self.code
 
     def get_full_name(self):
-        return self.full_name or dict([
-            ('CAF',  'College of Agriculture and Forestry'),
-            ('CAS',  'College of Arts and Sciences'),
-            ('CBA',  'College of Business Administration'),
-            ('CIT',  'College of Industrial Technology'),
-            ('CTED', 'College of Teacher Education'),
-            ('CCJE', 'College of Criminal Justice Education'),
-        ]).get(self.code, self.code)
+        return self.full_name or self.code
 
 
 # ─── Player ────────────────────────────────────────────────────────────────────
