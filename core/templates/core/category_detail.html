@@ -429,6 +429,16 @@ async function saveScore(matchId) {
   const sa = document.getElementById('sa-' + matchId)?.value;
   const sb = document.getElementById('sb-' + matchId)?.value;
   const st = document.getElementById('st-' + matchId)?.value;
+  const card = document.getElementById('match-' + matchId);
+
+  // Block jumping straight from Up Next → Finished
+  const isNextUp = card?.querySelector('.next-up-badge') !== null;
+  if (st === 'finished' && isNextUp) {
+    alert('This match is "Up Next" — please set it to Ongoing before marking it as Finished.');
+    document.getElementById('st-' + matchId).value = 'ongoing';
+    return;
+  }
+
   try {
     const res = await fetch(`/facilitator/match/${matchId}/score/`, {
       method: 'POST',
@@ -440,18 +450,26 @@ async function saveScore(matchId) {
       const el = document.getElementById('saved-' + matchId);
       if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2500); }
       // Update visible score/badge in the card immediately — no refresh needed
-      const card = document.getElementById('match-' + matchId);
       if (card) {
         const badge = card.querySelector('.status-badge');
         if (badge) { badge.className = 'badge-' + data.status + ' status-badge'; badge.textContent = data.status_display; }
-        // FIX: update the live score display text
+        // Update live score display text
         const scoreDisplay = card.querySelector('.score-display');
         if (scoreDisplay) { scoreDisplay.textContent = data.score_a + ' — ' + data.score_b; }
         const scoreA = card.querySelector('.score-a');
         if (scoreA) { scoreA.textContent = data.score_a; }
         const scoreB = card.querySelector('.score-b');
         if (scoreB) { scoreB.textContent = data.score_b; }
+        // Remove UP NEXT badge when match becomes ongoing or finished
+        if (!data.is_next_up) {
+          const nextUpBadge = card.querySelector('.next-up-badge');
+          if (nextUpBadge) { nextUpBadge.remove(); }
+        }
       }
+    } else if (data.error) {
+      alert(data.error);
+      // Revert the status dropdown to ongoing if server rejected the change
+      document.getElementById('st-' + matchId).value = 'ongoing';
     }
   } catch(e) {}
 }

@@ -509,12 +509,20 @@ def update_match_score(request, match_id):
     match.score_a = int(data.get('score_a', match.score_a))
     match.score_b = int(data.get('score_b', match.score_b))
     status = data.get('status', match.status)
+    # Block jumping straight from Up Next → Finished to avoid confusion
+    if status == 'finished' and match.is_next_up:
+        return JsonResponse(
+            {'error': 'Match is "Up Next" — set it to Ongoing before marking it Finished.'},
+            status=400
+        )
     if status in ['scheduled', 'ongoing', 'finished']:
         match.status = status
+    # Clear Up Next whenever the game becomes active or done
+    if match.status in ['ongoing', 'finished']:
+        match.is_next_up = False
     match.save()
     if match.status == 'finished':
         advance_winner(match)
-        match.is_next_up = False
         match.save()
     return JsonResponse({
         'success': True,
@@ -522,6 +530,7 @@ def update_match_score(request, match_id):
         'score_b': match.score_b,
         'status': match.status,
         'status_display': match.get_status_display(),
+        'is_next_up': match.is_next_up,
     })
 
 
